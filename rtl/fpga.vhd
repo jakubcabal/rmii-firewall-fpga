@@ -45,7 +45,7 @@ begin
         BAUD_RATE => 9600
     )
     port map (
-        CLK      => CLK,
+        CLK      => CLK_12M,
         RST      => reset,
         -- UART INTERFACE
         UART_TXD => UART_TXD,
@@ -64,9 +64,9 @@ begin
     debug_reg_sel <= '1' when (wb_master_addr = X"0004") else '0';
     debug_reg_we  <= wb_master_stb and wb_master_we and debug_reg_sel;
 
-    debug_reg_p : process (CLK)
+    debug_reg_p : process (CLK_12M)
     begin
-        if (rising_edge(CLK)) then
+        if (rising_edge(CLK_12M)) then
             if (debug_reg_we = '1') then
                 debug_reg <= wb_master_dout;
             end if;
@@ -75,16 +75,16 @@ begin
 
     wb_master_stall <= '0';
 
-    wb_master_ack_reg_p : process (CLK)
+    wb_master_ack_reg_p : process (CLK_12M)
     begin
-        if (rising_edge(CLK)) then
+        if (rising_edge(CLK_12M)) then
             wb_master_ack <= wb_master_cyc and wb_master_stb;
         end if;
     end process;
 
-    wb_master_din_reg_p : process (CLK)
+    wb_master_din_reg_p : process (CLK_12M)
     begin
-        if (rising_edge(CLK)) then
+        if (rising_edge(CLK_12M)) then
             case wb_master_addr is
                 when X"0000" =>
                     wb_master_din <= X"20190907";
