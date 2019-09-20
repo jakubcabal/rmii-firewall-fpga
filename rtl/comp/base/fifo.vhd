@@ -32,8 +32,8 @@ end entity;
 
 architecture RTL of FIFO is
 
-	signal wr_addr    : unsigned(ADDR_WIDTH-1 downto 0);
-	signal wr_allowed : std_logic;
+    signal wr_addr    : unsigned(ADDR_WIDTH-1 downto 0);
+    signal wr_allowed : std_logic;
     signal rd_addr    : unsigned(ADDR_WIDTH-1 downto 0);
     signal rd_allowed : std_logic;
     signal cmp_full   : std_logic;
@@ -47,29 +47,29 @@ architecture RTL of FIFO is
 
 begin
 
-	wr_allowed <= WR_EN and not full_reg;
-	rd_allowed <= RD_EN and not cmp_empty;
+    wr_allowed <= WR_EN and not full_reg;
+    rd_allowed <= RD_EN and not cmp_empty;
 
     -- -------------------------------------------------------------------------
     --  BRAM AND READ DATA VALID
     -- -------------------------------------------------------------------------
 
-	bram_p : process (CLK)
-	begin
-		if (rising_edge(CLK)) then
-			if (wr_allowed = '1') then
-				bram(to_integer(wr_addr)) <= DIN;
-			end if;
-			DOUT <= bram(to_integer(rd_addr));
-		end if;
-	end process;
+    bram_p : process (CLK)
+    begin
+        if (rising_edge(CLK)) then
+            if (wr_allowed = '1') then
+                bram(to_integer(wr_addr)) <= DIN;
+            end if;
+            DOUT <= bram(to_integer(rd_addr));
+        end if;
+    end process;
 
-	rd_data_vld_p : process (CLK)
-	begin
-		if (rising_edge(CLK)) then
-			DOUT_VLD <= rd_allowed;
-		end if;
-	end process;
+    rd_data_vld_p : process (CLK)
+    begin
+        if (rising_edge(CLK)) then
+            DOUT_VLD <= rd_allowed;
+        end if;
+    end process;
 
     -- -------------------------------------------------------------------------
     --  WRITE ADDRESS COUNTER
@@ -120,7 +120,7 @@ begin
         end if;
     end process;
 
-	FULL <= full_reg;
+    FULL <= full_reg;
 
     -- -------------------------------------------------------------------------
     --                        EMPTY FLAG AND FIFO STATUS
