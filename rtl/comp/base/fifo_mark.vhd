@@ -15,42 +15,43 @@ entity FIFO_MARK is
         ADDR_WIDTH : integer := 4
     );
     Port (
-        CLK      : in  std_logic;
-        RST      : in  std_logic;
+        CLK         : in  std_logic;
+        RST         : in  std_logic;
         -- FIFO WRITE INTERFACE
-        DIN      : in  std_logic_vector(DATA_WIDTH-1 downto 0);
-        WR_EN    : in  std_logic;
-        MARK     : in  std_logic;
-        DISCARD  : in  std_logic;
-        FULL     : out std_logic;
+        WR_DATA     : in  std_logic_vector(DATA_WIDTH-1 downto 0);
+        WR_REQ      : in  std_logic;
+        WR_FULL     : out std_logic;
         -- FIFO READ INTERFACE
-        DOUT     : out std_logic_vector(DATA_WIDTH-1 downto 0);
-        DOUT_VLD : out std_logic;
-        RD_EN    : in  std_logic;
-        -- FIFO STATUS SIGNAL
-        STATUS   : out std_logic_vector(ADDR_WIDTH-1 downto 0)
+        RD_DATA     : out std_logic_vector(DATA_WIDTH-1 downto 0);
+        RD_DATA_VLD : out std_logic;
+        RD_REQ      : in  std_logic;
+        -- FIFO OTHERS SIGNALS
+        MARK        : in  std_logic;
+        DISCARD     : in  std_logic;
+        STATUS      : out std_logic_vector(ADDR_WIDTH-1 downto 0)
     );
 end entity;
 
 architecture RTL of FIFO_MARK is
 
-    signal wr_addr    : unsigned(ADDR_WIDTH-1 downto 0);
-    signal wr_allowed : std_logic;
-    signal rd_addr    : unsigned(ADDR_WIDTH-1 downto 0);
-    signal rd_allowed : std_logic;
-    signal cmp_full   : std_logic;
-    signal cmp_afull  : std_logic;
-    signal full_next  : std_logic;
-    signal full_reg   : std_logic;
-    signal cmp_empty  : std_logic;
+    signal wr_addr      : unsigned(ADDR_WIDTH-1 downto 0);
+    signal wr_addr_mark : unsigned(ADDR_WIDTH-1 downto 0);
+    signal wr_allowed   : std_logic;
+    signal rd_addr      : unsigned(ADDR_WIDTH-1 downto 0);
+    signal rd_allowed   : std_logic;
+    signal cmp_full     : std_logic;
+    signal cmp_afull    : std_logic;
+    signal full_next    : std_logic;
+    signal full_reg     : std_logic;
+    signal cmp_empty    : std_logic;
 
     type bram_type is array(2**ADDR_WIDTH-1 downto 0) of std_logic_vector(DATA_WIDTH-1 downto 0);
     signal bram : bram_type := (others => (others => '0'));
 
 begin
 
-    wr_allowed <= WR_EN and not full_reg;
-    rd_allowed <= RD_EN and not cmp_empty;
+    wr_allowed <= WR_REQ and not full_reg;
+    rd_allowed <= RD_REQ and not cmp_empty;
 
     -- -------------------------------------------------------------------------
     --  BRAM AND READ DATA VALID
@@ -60,16 +61,18 @@ begin
     begin
         if (rising_edge(CLK)) then
             if (wr_allowed = '1') then
-                bram(to_integer(wr_addr)) <= DIN;
+                bram(to_integer(wr_addr)) <= WR_DATA;
             end if;
-            DOUT <= bram(to_integer(rd_addr));
+            if (RD_REQ = '1') then
+                RD_DATA <= bram(to_integer(rd_addr));
+            end if;
         end if;
     end process;
 
     rd_data_vld_p : process (CLK)
     begin
         if (rising_edge(CLK)) then
-            DOUT_VLD <= rd_allowed;
+            RD_DATA_VLD <= rd_allowed;
         end if;
     end process;
 
@@ -117,12 +120,12 @@ begin
     end process;
 
     -- -------------------------------------------------------------------------
-    --                        FULL FLAG REGISTER
+    --                        WR_FULL FLAG REGISTER
     -- -------------------------------------------------------------------------
 
     cmp_full  <= '1' when (rd_addr = (wr_addr+1)) else '0';
     cmp_afull <= '1' when (rd_addr = (wr_addr+2)) else '0';
-    full_next <= cmp_full or (cmp_afull and WR_EN and not RD_EN);
+    full_next <= cmp_full or (cmp_afull and WR_REQ and not RD_REQ);
 
     full_reg_p : process (CLK)
     begin
@@ -135,7 +138,7 @@ begin
         end if;
     end process;
 
-    FULL <= full_reg;
+    WR_FULL <= full_reg;
 
     -- -------------------------------------------------------------------------
     --                        EMPTY FLAG AND FIFO STATUS
