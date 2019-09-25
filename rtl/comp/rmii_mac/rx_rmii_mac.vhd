@@ -71,6 +71,7 @@ architecture RTL of RX_RMII_MAC is
     type fsm_dec_state is (idle, preamble, sfd, sop, wait4eop);
     signal fsm_dec_pstate : fsm_dec_state;
     signal fsm_dec_nstate : fsm_dec_state;
+    signal fsm_dec_dbg_st : std_logic_vector(2 downto 0);
 
     signal vld_flag  : std_logic;
     signal sop_flag  : std_logic;
@@ -93,13 +94,24 @@ architecture RTL of RX_RMII_MAC is
     signal fsm_fic_pstate : fsm_fic_state;
     signal fsm_fic_nstate : fsm_fic_state;
 
-    signal fifom_din     : std_logic_vector(FIFO_DATA_WIDTH-1 downto 0);
-    signal fifom_wr      : std_logic;
-    signal fifom_mark    : std_logic;
-    signal fifom_discard : std_logic;
-    signal fifom_full    : std_logic;
-    signal fifom_dout    : std_logic_vector(FIFO_DATA_WIDTH-1 downto 0);
-    signal fifom_status  : std_logic_vector(FIFO_ADDR_WIDTH-1 downto 0);
+    signal fifom_din      : std_logic_vector(FIFO_DATA_WIDTH-1 downto 0);
+    signal fifom_wr       : std_logic;
+    signal fifom_mark     : std_logic;
+    signal fifom_discard  : std_logic;
+    signal fifom_full     : std_logic;
+    signal fifom_dout     : std_logic_vector(FIFO_DATA_WIDTH-1 downto 0);
+    signal fifom_dout_vld : std_logic;
+    signal fifom_rd       : std_logic;
+    signal fifom_status   : std_logic_vector(FIFO_ADDR_WIDTH-1 downto 0);
+
+    signal cmd_sel          : std_logic;
+    signal cmd_we           : std_logic;
+    signal cmd_enable_reset : std_logic;
+    signal cmd_enable_set   : std_logic;
+    signal cmd_cnt_clear    : std_logic;
+
+    signal enable_reg : std_logic;
+    signal status_reg : std_logic_vector(31 downto 0);
 
 begin
 
@@ -169,7 +181,7 @@ begin
         WR_RST      => RMII_RST,
         WR_DATA     => asfifo_din,
         WR_REQ      => rx_byte_vld,
-        WR_FULL     => open, -- USER clock must be faster than RMII clock
+        WR_FULL     => open, -- USER_CLK must be >= RMII_CLK/4
         -- FIFO READ INTERFACE
         RD_CLK      => USER_CLK,
         RD_RST      => USER_RST,
@@ -199,12 +211,14 @@ begin
     process (fsm_dec_pstate, rx_byte_vld_synced, rx_byte_synced, rx_byte_last_synced)
     begin
         fsm_dec_nstate <= idle;
+        fsm_dec_dbg_st <= "000";
         vld_flag       <= '0';
         sop_flag       <= '0';
         eop_flag       <= '0';
 
         case fsm_dec_pstate is
             when idle =>
+                fsm_dec_dbg_st <= "000";
                 if (rx_byte_vld_synced = '1' and rx_byte_synced = X"55") then
                     fsm_dec_nstate <= preamble;
                 else
@@ -212,6 +226,7 @@ begin
                 end if;
 
             when preamble => -- todo check number of preamble bytes
+                fsm_dec_dbg_st <= "001";
                 if (rx_byte_vld_synced = '1') then
                     if (rx_byte_synced = X"D5") then
                         fsm_dec_nstate <= sfd;
@@ -225,6 +240,7 @@ begin
                 end if;
 
             when sfd => -- start frame delimiter
+                fsm_dec_dbg_st <= "010";
                 if (rx_byte_vld_synced = '1') then
                     fsm_dec_nstate <= sop;
                 else
@@ -232,6 +248,7 @@ begin
                 end if;
 
             when sop => -- start of packet (first byte)
+                fsm_dec_dbg_st <= "011";
                 vld_flag <= '1';
                 sop_flag <= '1';
                 if (rx_byte_vld_synced = '1') then
@@ -241,6 +258,7 @@ begin
                 end if;
 
             when wait4eop => -- wait for end of packet (last byte)
+                fsm_dec_dbg_st <= "100";
                 vld_flag <= '1';
                 if (rx_byte_vld_synced = '1' and rx_byte_last_synced = '1') then
                     eop_flag   <= '1';
@@ -288,7 +306,7 @@ begin
     process (USER_CLK)
     begin
         if (rising_edge(USER_CLK)) then
-            if (USER_RST = '1') then
+            if (USER_RST = '1' or cmd_cnt_clear = '1') then
                 cnt_rx_pkt <= (others => '0');
             elsif (sb1_sop = '1' and sb1_vld = '1') then
                 cnt_rx_pkt <= cnt_rx_pkt + 1;
@@ -299,7 +317,7 @@ begin
     process (USER_CLK)
     begin
         if (rising_edge(USER_CLK)) then
-            if (USER_RST = '1') then
+            if (USER_RST = '1' or cmd_cnt_clear = '1') then
                 cnt_tx_pkt <= (others => '0');
             elsif (fifom_discard = '0' and sb1_eop = '1' and sb1_vld = '1') then
                 cnt_tx_pkt <= cnt_tx_pkt + 1;
@@ -376,20 +394,84 @@ begin
         WR_FULL     => fifom_full,
         -- FIFO READ INTERFACE
         RD_DATA     => fifom_dout,
-        RD_DATA_VLD => TX_VLD,
-        RD_REQ      => TX_RDY,
+        RD_DATA_VLD => fifom_dout_vld,
+        RD_REQ      => fifom_rd,
         -- FIFO OTHERS SIGNALS
         MARK        => fifom_mark,
         DISCARD     => fifom_discard,
         STATUS      => fifom_status
     );
 
+    fifom_rd <= TX_RDY and enable_reg;
+
     TX_DATA <= fifom_dout(8+2-1 downto 2);
     TX_SOP  <= fifom_dout(1);
     TX_EOP  <= fifom_dout(0);
+    TX_VLD  <= fifom_dout_vld and enable_reg;
 
     -- -------------------------------------------------------------------------
     --  WISHBONE SLAVE LOGIC
     -- -------------------------------------------------------------------------
+
+    cmd_sel <= '1' when (WB_ADDR(7 downto 0) = X"00") else '0';
+    cmd_we  <= wb_stb and wb_we and cmd_sel;
+
+    cmd_reg_p : process (USER_CLK)
+    begin
+        if (rising_edge(USER_CLK)) then
+            cmd_enable_reset <= '0';
+            cmd_enable_set   <= '0';
+            cmd_cnt_clear    <= '0';
+            if (cmd_we = '1' and WB_DIN(7 downto 0) = X"00") then
+                cmd_enable_reset <= '1';
+            end if;
+            if (cmd_we = '1' and WB_DIN(7 downto 0) = X"01") then
+                cmd_enable_set <= '1';
+            end if;
+            if (cmd_we = '1' and WB_DIN(7 downto 0) = X"02") then
+                cmd_cnt_clear <= '1';
+            end if;
+        end if;
+    end process;
+
+    enable_reg_p : process (USER_CLK)
+    begin
+        if (rising_edge(USER_CLK)) then
+            if (USER_RST = '1' or cmd_enable_reset = '1') then
+                enable_reg <= '0';
+            elsif (cmd_enable_set = '1') then
+                enable_reg <= '1';
+            end if;
+        end if;
+    end process;
+
+    status_reg <= (31 downto 19 => '0') & fifom_status & "000" & fifom_full & '0' & fsm_dec_dbg_st;
+
+    WB_STALL <= '0';
+
+    wb_ack_reg_p : process (USER_CLK)
+    begin
+        if (rising_edge(USER_CLK)) then
+            WB_ACK <= WB_CYC and WB_STB;
+        end if;
+    end process;
+
+    wb_dout_reg_p : process (USER_CLK)
+    begin
+        if (rising_edge(USER_CLK)) then
+            case WB_ADDR(7 downto 0) is
+                when X"00" =>
+                    WB_DOUT <= (31 downto 1 => '0') & enable_reg;
+                when X"04" =>
+                    WB_DOUT <= status_reg;
+                when X"10" =>
+                    WB_DOUT <= std_logic_vector(cnt_rx_pkt);
+                when X"14" =>
+                    WB_DOUT <= std_logic_vector(cnt_tx_pkt);
+                when others =>
+                    WB_DOUT <= X"DEADCAFE";
+            end case;
+        end if;
+    end process;
 
 end architecture;
