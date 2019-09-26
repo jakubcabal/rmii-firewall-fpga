@@ -31,5 +31,9 @@ set_global_assignment -name SDC_FILE fpga.sdc
 # FPGA PINS ASSIGNMENT
 set_location_assignment PIN_M2 -to CLK_12M
 set_location_assignment PIN_N6 -to RST_BTN_N
+set_location_assignment PIN_F13 -to ETH0_CLK
+set_location_assignment PIN_F15 -to ETH0_RXD[0]
+set_location_assignment PIN_F16 -to ETH0_RXD[1]
+set_location_assignment PIN_D16 -to ETH0_CSR_DV
 set_location_assignment PIN_T7 -to UART_TXD
 set_location_assignment PIN_R7 -to UART_RXD
