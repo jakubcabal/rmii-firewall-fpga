@@ -6,3 +6,4 @@
 #-------------------------------------------------------------------------------
 
 create_clock -name CLK12M -period 12MHz [get_ports {CLK_12M}]
+derive_pll_clocks
