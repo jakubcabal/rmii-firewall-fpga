@@ -99,6 +99,6 @@ begin
         wrfull  => WR_FULL
     );
 
-    RD_DATA_VLD <= rd_data_vld_n;
+    RD_DATA_VLD <= not rd_data_vld_n;
 
 end architecture;
