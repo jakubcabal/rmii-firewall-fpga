@@ -20,7 +20,13 @@ end entity;
 
 architecture FULL of FPGA is
 
-    signal reset : std_logic;
+    signal rst_btn : std_logic;
+
+    signal pll_locked   : std_logic;
+    signal pll_locked_n : std_logic;
+
+    signal clk_usr : std_logic;
+    signal rst_usr : std_logic;
 
     signal wb_master_cyc   : std_logic;
     signal wb_master_stb   : std_logic;
@@ -37,16 +43,34 @@ architecture FULL of FPGA is
 
 begin
 
-    reset <= not RST_BTN_N;
+    rst_btn <= not RST_BTN_N;
 
-	uart2wbm_i: entity work.UART2WBM
+	pll_i : entity work.PLL
+    port map (
+        IN_CLK_12M     => CLK_12M,
+        IN_RST_BTN     => rst_btn,
+        OUT_PLL_LOCKED => pll_locked,
+        OUT_CLK_25M    => clk_usr,
+        OUT_CLK_50M    => open
+    );
+
+    pll_locked_n <= not pll_locked;
+
+    rst_sync_i : entity work.RST_SYNC
+    port map (
+        CLK        => clk_usr,
+        ASYNC_RST  => pll_locked_n,
+        SYNCED_RST => rst_usr
+    );
+
+	uart2wbm_i : entity work.UART2WBM
     generic map (
-        CLK_FREQ  => 12e6,
+        CLK_FREQ  => 25e6,
         BAUD_RATE => 9600
     )
     port map (
-        CLK      => CLK_12M,
-        RST      => reset,
+        CLK      => clk_usr,
+        RST      => rst_usr,
         -- UART INTERFACE
         UART_TXD => UART_TXD,
         UART_RXD => UART_RXD,
@@ -64,9 +88,9 @@ begin
     debug_reg_sel <= '1' when (wb_master_addr = X"0004") else '0';
     debug_reg_we  <= wb_master_stb and wb_master_we and debug_reg_sel;
 
-    debug_reg_p : process (CLK_12M)
+    debug_reg_p : process (clk_usr)
     begin
-        if (rising_edge(CLK_12M)) then
+        if (rising_edge(clk_usr)) then
             if (debug_reg_we = '1') then
                 debug_reg <= wb_master_dout;
             end if;
@@ -75,16 +99,16 @@ begin
 
     wb_master_stall <= '0';
 
-    wb_master_ack_reg_p : process (CLK_12M)
+    wb_master_ack_reg_p : process (clk_usr)
     begin
-        if (rising_edge(CLK_12M)) then
+        if (rising_edge(clk_usr)) then
             wb_master_ack <= wb_master_cyc and wb_master_stb;
         end if;
     end process;
 
-    wb_master_din_reg_p : process (CLK_12M)
+    wb_master_din_reg_p : process (clk_usr)
     begin
-        if (rising_edge(CLK_12M)) then
+        if (rising_edge(clk_usr)) then
             case wb_master_addr is
                 when X"0000" =>
                     wb_master_din <= X"20190907";

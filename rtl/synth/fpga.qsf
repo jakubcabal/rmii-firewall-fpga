@@ -11,6 +11,12 @@ set_global_assignment -name TOP_LEVEL_ENTITY FPGA
 set_global_assignment -name STRATIX_DEVICE_IO_STANDARD "3.3-V LVTTL"
 
 # PROJECT VHDL FILES
+set_global_assignment -name VHDL_FILE ../comp/base/rst_sync.vhd
+set_global_assignment -name VHDL_FILE ../comp/base/pll.vhd
+set_global_assignment -name VHDL_FILE ../comp/base/fifo_mark.vhd
+set_global_assignment -name VHDL_FILE ../comp/base/fifo.vhd
+set_global_assignment -name VHDL_FILE ../comp/base/asfifo.vhd
+set_global_assignment -name VHDL_FILE ../comp/rmii_mac/rx_rmii_mac.vhd
 set_global_assignment -name VHDL_FILE ../comp/uart2wbm/uart_debouncer.vhd
 set_global_assignment -name VHDL_FILE ../comp/uart2wbm/uart_parity.vhd
 set_global_assignment -name VHDL_FILE ../comp/uart2wbm/uart_tx.vhd
