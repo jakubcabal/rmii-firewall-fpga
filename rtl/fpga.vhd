@@ -13,6 +13,11 @@ entity FPGA is
     Port (
         CLK_12M   : in  std_logic;
         RST_BTN_N : in  std_logic;
+
+        ETH0_CLK    : in  std_logic;
+        ETH0_RXD    : in  std_logic_vector(1 downto 0);
+        ETH0_CSR_DV : in  std_logic;
+    
         UART_RXD  : in  std_logic;
         UART_TXD  : out std_logic
     );
@@ -25,8 +30,9 @@ architecture FULL of FPGA is
     signal pll_locked   : std_logic;
     signal pll_locked_n : std_logic;
 
-    signal clk_usr : std_logic;
-    signal rst_usr : std_logic;
+    signal clk_usr  : std_logic;
+    signal rst_usr  : std_logic;
+    signal rst_eth0 : std_logic;
 
     signal wb_master_cyc   : std_logic;
     signal wb_master_stb   : std_logic;
@@ -56,11 +62,18 @@ begin
 
     pll_locked_n <= not pll_locked;
 
-    rst_sync_i : entity work.RST_SYNC
+    rst_usr_sync_i : entity work.RST_SYNC
     port map (
         CLK        => clk_usr,
         ASYNC_RST  => pll_locked_n,
         SYNCED_RST => rst_usr
+    );
+
+    rst_eth0_sync_i : entity work.RST_SYNC
+    port map (
+        CLK        => ETH0_CLK,
+        ASYNC_RST  => pll_locked_n,
+        SYNCED_RST => rst_eth0
     );
 
 	uart2wbm_i : entity work.UART2WBM
@@ -85,39 +98,69 @@ begin
         WB_DIN   => wb_master_din
     );
 
-    debug_reg_sel <= '1' when (wb_master_addr = X"0004") else '0';
-    debug_reg_we  <= wb_master_stb and wb_master_we and debug_reg_sel;
+    eth0_rx_mac_i : entity work.RX_RMII_MAC
+    port map (
+        -- CLOCKS AND RESETS
+        RMII_CLK => ETH0_CLK,
+        RMII_RST => rst_eth0,
+        USER_CLK => clk_usr,
+        USER_RST => rst_usr,
 
-    debug_reg_p : process (clk_usr)
-    begin
-        if (rising_edge(clk_usr)) then
-            if (debug_reg_we = '1') then
-                debug_reg <= wb_master_dout;
-            end if;
-        end if;
-    end process;
+        -- RMII INPUT INTERFACE (RMII_CLK)
+        RMII_RXD    => ETH0_RXD,
+        RMII_CSR_DV => ETH0_CSR_DV,
 
-    wb_master_stall <= '0';
+        -- USER OUTPUT STREAM INTERFACE (USER_CLK)
+        TX_DATA => open,
+        TX_SOP  => open,
+        TX_EOP  => open,
+        TX_VLD  => open,
+        TX_RDY  => '1',
 
-    wb_master_ack_reg_p : process (clk_usr)
-    begin
-        if (rising_edge(clk_usr)) then
-            wb_master_ack <= wb_master_cyc and wb_master_stb;
-        end if;
-    end process;
+        -- WISHBONE SLAVE INTERFACE (USER_CLK)
+	    WB_CYC   => wb_master_cyc,
+	    WB_STB   => wb_master_stb,
+	    WB_WE    => wb_master_we,
+	    WB_ADDR  => wb_master_addr,
+        WB_DIN   => wb_master_dout,
+        WB_STALL => wb_master_stall,
+        WB_ACK   => wb_master_ack,
+        WB_DOUT  => wb_master_din
+    );
 
-    wb_master_din_reg_p : process (clk_usr)
-    begin
-        if (rising_edge(clk_usr)) then
-            case wb_master_addr is
-                when X"0000" =>
-                    wb_master_din <= X"20190907";
-                when X"0004" =>
-                    wb_master_din <= debug_reg;
-                when others =>
-                    wb_master_din <= X"DEADCAFE";
-            end case;
-        end if;
-    end process;
+    --debug_reg_sel <= '1' when (wb_master_addr = X"0004") else '0';
+    --debug_reg_we  <= wb_master_stb and wb_master_we and debug_reg_sel;
+--
+    --debug_reg_p : process (clk_usr)
+    --begin
+    --    if (rising_edge(clk_usr)) then
+    --        if (debug_reg_we = '1') then
+    --            debug_reg <= wb_master_dout;
+    --        end if;
+    --    end if;
+    --end process;
+--
+    --wb_master_stall <= '0';
+--
+    --wb_master_ack_reg_p : process (clk_usr)
+    --begin
+    --    if (rising_edge(clk_usr)) then
+    --        wb_master_ack <= wb_master_cyc and wb_master_stb;
+    --    end if;
+    --end process;
+--
+    --wb_master_din_reg_p : process (clk_usr)
+    --begin
+    --    if (rising_edge(clk_usr)) then
+    --        case wb_master_addr is
+    --            when X"0000" =>
+    --                wb_master_din <= X"20190907";
+    --            when X"0004" =>
+    --                wb_master_din <= debug_reg;
+    --            when others =>
+    --                wb_master_din <= X"DEADCAFE";
+    --        end case;
+    --    end if;
+    --end process;
 
 end architecture;

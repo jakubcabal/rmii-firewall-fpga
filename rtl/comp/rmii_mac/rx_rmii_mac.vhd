@@ -56,6 +56,7 @@ architecture RTL of RX_RMII_MAC is
     signal rmii_csr_dv_reg  : std_logic;
     signal rx_cnt           : unsigned(1 downto 0);
     signal rx_cnt_max       : std_logic;
+    signal rx_cnt_rst       : std_logic;
 
     signal rx_byte          : std_logic_vector(7 downto 0);
     signal rx_byte_last     : std_logic;
@@ -68,7 +69,7 @@ architecture RTL of RX_RMII_MAC is
     signal rx_byte_last_synced : std_logic;
     signal rx_byte_vld_synced  : std_logic;
 
-    type fsm_dec_state is (idle, preamble, sfd, sop, wait4eop);
+    type fsm_dec_state is (idle, preamble, sop, wait4eop);
     signal fsm_dec_pstate : fsm_dec_state;
     signal fsm_dec_nstate : fsm_dec_state;
     signal fsm_dec_dbg_st : std_logic_vector(2 downto 0);
@@ -135,15 +136,32 @@ begin
         if (rising_edge(RMII_CLK)) then
             rmii_rxd_reg    <= rmii_rxd_sync;
             rmii_csr_dv_reg <= rmii_csr_dv_sync;
-            if (rmii_csr_dv_sync = '1') then
-                rx_cnt <= rx_cnt + 1;
-            else
-                rx_cnt <= (others => '0');
+        end if;
+    end process;
+
+    process (RMII_CLK)
+    begin
+        if (rising_edge(RMII_CLK)) then
+            if (RMII_RST = '1' or rmii_csr_dv_reg = '0') then
+                rx_cnt_rst <= '1';
+            elsif (rmii_csr_dv_reg = '1' and rmii_rxd_reg = "01") then
+                rx_cnt_rst <= '0';
             end if;
         end if;
     end process;
 
-    rx_cnt_max <= '1' when (rx_cnt = "11") else '0';
+    process (RMII_CLK)
+    begin
+        if (rising_edge(RMII_CLK)) then
+            if (rx_cnt_rst = '1') then
+                rx_cnt <= to_unsigned(1,2);
+            else
+                rx_cnt <= rx_cnt + 1;
+            end if;
+        end if;
+    end process;
+
+    rx_cnt_max <= '1' when (rx_cnt = 3) else '0';
 
     process (RMII_CLK)
     begin
@@ -187,7 +205,7 @@ begin
         RD_RST      => USER_RST,
         RD_DATA     => asfifo_dout,
         RD_DATA_VLD => rx_byte_vld_synced,
-        RD_REQ      => '1'
+        RD_REQ      => rx_byte_vld_synced
     );
 
     rx_byte_synced      <= asfifo_dout(8+1-1 downto 1);
@@ -229,7 +247,7 @@ begin
                 fsm_dec_dbg_st <= "001";
                 if (rx_byte_vld_synced = '1') then
                     if (rx_byte_synced = X"D5") then
-                        fsm_dec_nstate <= sfd;
+                        fsm_dec_nstate <= sop;
                     elsif (rx_byte_synced = X"55") then
                         fsm_dec_nstate <= preamble;
                     else
@@ -239,14 +257,6 @@ begin
                     fsm_dec_nstate <= preamble;
                 end if;
 
-            when sfd => -- start frame delimiter
-                fsm_dec_dbg_st <= "010";
-                if (rx_byte_vld_synced = '1') then
-                    fsm_dec_nstate <= sop;
-                else
-                    fsm_dec_nstate <= sfd;
-                end if;
-
             when sop => -- start of packet (first byte)
                 fsm_dec_dbg_st <= "011";
                 vld_flag <= '1';
@@ -254,7 +264,7 @@ begin
                 if (rx_byte_vld_synced = '1') then
                     fsm_dec_nstate <= wait4eop;
                 else
-                    fsm_dec_nstate <= sfd;
+                    fsm_dec_nstate <= sop;
                 end if;
 
             when wait4eop => -- wait for end of packet (last byte)
