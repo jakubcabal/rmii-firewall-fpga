@@ -64,8 +64,12 @@ architecture RTL of ASFIFO is
     );
     end component;
 
+    attribute ALTERA_ATTRIBUTE : string;
+
     signal fifo_aclr     : std_logic;
     signal rd_data_vld_n : std_logic;
+
+    attribute ALTERA_ATTRIBUTE of RTL : architecture is "-name SDC_STATEMENT ""set_false_path -through [get_nets *fifo_aclr]""";
 
 begin
 
@@ -75,7 +79,7 @@ begin
     GENERIC MAP (
         intended_device_family => "Cyclone 10 LP",
         lpm_numwords           => 2**ADDR_WIDTH,
-        lpm_showahead          => "OFF",
+        lpm_showahead          => "ON",
         lpm_type               => "dcfifo",
         lpm_width              => DATA_WIDTH,
         lpm_widthu             => ADDR_WIDTH,
