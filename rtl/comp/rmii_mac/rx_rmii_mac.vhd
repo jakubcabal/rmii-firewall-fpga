@@ -72,7 +72,7 @@ architecture RTL of RX_RMII_MAC is
     type fsm_dec_state is (idle, preamble, sop, wait4eop);
     signal fsm_dec_pstate : fsm_dec_state;
     signal fsm_dec_nstate : fsm_dec_state;
-    signal fsm_dec_dbg_st : std_logic_vector(2 downto 0);
+    signal fsm_dec_dbg_st : std_logic_vector(1 downto 0);
 
     signal vld_flag  : std_logic;
     signal sop_flag  : std_logic;
@@ -229,14 +229,14 @@ begin
     process (fsm_dec_pstate, rx_byte_vld_synced, rx_byte_synced, rx_byte_last_synced)
     begin
         fsm_dec_nstate <= idle;
-        fsm_dec_dbg_st <= "000";
+        fsm_dec_dbg_st <= "00";
         vld_flag       <= '0';
         sop_flag       <= '0';
         eop_flag       <= '0';
 
         case fsm_dec_pstate is
             when idle =>
-                fsm_dec_dbg_st <= "000";
+                fsm_dec_dbg_st <= "00";
                 if (rx_byte_vld_synced = '1' and rx_byte_synced = X"55") then
                     fsm_dec_nstate <= preamble;
                 else
@@ -244,7 +244,7 @@ begin
                 end if;
 
             when preamble => -- todo check number of preamble bytes
-                fsm_dec_dbg_st <= "001";
+                fsm_dec_dbg_st <= "01";
                 if (rx_byte_vld_synced = '1') then
                     if (rx_byte_synced = X"D5") then
                         fsm_dec_nstate <= sop;
@@ -258,7 +258,7 @@ begin
                 end if;
 
             when sop => -- start of packet (first byte)
-                fsm_dec_dbg_st <= "011";
+                fsm_dec_dbg_st <= "10";
                 vld_flag <= '1';
                 sop_flag <= '1';
                 if (rx_byte_vld_synced = '1') then
@@ -268,7 +268,7 @@ begin
                 end if;
 
             when wait4eop => -- wait for end of packet (last byte)
-                fsm_dec_dbg_st <= "100";
+                fsm_dec_dbg_st <= "11";
                 vld_flag <= '1';
                 if (rx_byte_vld_synced = '1' and rx_byte_last_synced = '1') then
                     eop_flag   <= '1';
@@ -318,7 +318,7 @@ begin
         if (rising_edge(USER_CLK)) then
             if (USER_RST = '1' or cmd_cnt_clear = '1') then
                 cnt_rx_pkt <= (others => '0');
-            elsif (sb1_sop = '1' and sb1_vld = '1') then
+            elsif (sb1_eop = '1' and sb1_vld = '1') then
                 cnt_rx_pkt <= cnt_rx_pkt + 1;
             end if;
         end if;
@@ -447,15 +447,15 @@ begin
     enable_reg_p : process (USER_CLK)
     begin
         if (rising_edge(USER_CLK)) then
-            if (USER_RST = '1' or cmd_enable_reset = '1') then
-                enable_reg <= '0';
-            elsif (cmd_enable_set = '1') then
+            if (USER_RST = '1' or cmd_enable_set = '1') then
                 enable_reg <= '1';
+            elsif (cmd_enable_reset = '1') then
+                enable_reg <= '0';
             end if;
         end if;
     end process;
 
-    status_reg <= (31 downto 19 => '0') & fifom_status & "000" & fifom_full & '0' & fsm_dec_dbg_st;
+    status_reg <= (31 downto 19 => '0') & fifom_status & "000" & fifom_full & "00" & fsm_dec_dbg_st;
 
     WB_STALL <= '0';
 
