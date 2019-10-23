@@ -9,7 +9,7 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
--- Only 100 Mbps is supported now.
+-- Only 100 Mbps full duplex mode is supported now.
 
 entity TX_RMII_MAC is
     Port (
@@ -47,6 +47,9 @@ architecture RTL of TX_RMII_MAC is
     constant ASFIFO_DATA_WIDTH : natural := 8+1+1; -- data + sop + eop
     constant ASFIFO_ADDR_WIDTH : natural := 11; -- fifo depth
 
+    signal rx_rdy_en : std_logic;
+    signal rx_vld_en : std_logic;
+
     signal asfifo_din  : std_logic_vector(ASFIFO_DATA_WIDTH-1 downto 0);
     signal asfifo_dout : std_logic_vector(ASFIFO_DATA_WIDTH-1 downto 0);
     signal asfifo_full : std_logic;
@@ -63,18 +66,17 @@ architecture RTL of TX_RMII_MAC is
 
     signal cnt_tx_pkt : unsigned(31 downto 0);
 
-    type fsm_tx_state is (idle, preamble, sfd, packet, igp);
+    type fsm_tx_state is (idle, preamble, sfd, packet, ipg);
     signal fsm_tx_pstate : fsm_tx_state;
     signal fsm_tx_nstate : fsm_tx_state;
     signal fsm_tx_enable : std_logic;
 
-    signal rx_rdy_synced : std_logic;
+    signal cnt_reg       : unsigned(3 downto 0);
     signal cnt_reg_next  : unsigned(3 downto 0);
-    signal pkt_rdy_next  : std_logic;
     signal tx_byte       : std_logic_vector(7 downto 0);
     signal tx_en         : std_logic;
 
-    signal tx_cnt    : unsigned(3 downto 0);
+    signal tx_cnt    : unsigned(1 downto 0);
     signal txd_reg   : std_logic_vector(1 downto 0);
     signal tx_en_reg : std_logic;
 
@@ -149,7 +151,7 @@ begin
         -- FIFO WRITE INTERFACE
         WR_CLK      => USER_CLK,
         WR_RST      => USER_RST,
-        WR_DATA     => '1',
+        WR_DATA     => (others => '1'),
         WR_REQ      => rx_eop_vld,
         WR_FULL     => open,
         -- FIFO READ INTERFACE
@@ -169,8 +171,10 @@ begin
         if (rising_edge(RMII_CLK)) then
             if (RMII_RST = '1') then
                 fsm_tx_pstate <= idle;
-            elsif (fsm_tx_enable = '1')
+                cnt_reg <= (others => '0');
+            elsif (fsm_tx_enable = '1') then
                 fsm_tx_pstate <= fsm_tx_nstate;
+                cnt_reg <= cnt_reg_next;
             end if;
         end if;
     end process;
@@ -249,18 +253,18 @@ begin
         end if;
     end process;
 
-    fsm_tx_enable <= '1' when (tx_cnt = 3) else '0';
+    fsm_tx_enable <= '1' when (tx_cnt = "11") else '0';
 
     process (RMII_CLK)
     begin
         if (rising_edge(RMII_CLK)) then
             if (tx_en = '1') then
                 case tx_cnt is
-                    when 0 =>
+                    when "00" =>
                         txd_reg <= tx_byte(1 downto 0);
-                    when 1 =>
+                    when "01" =>
                         txd_reg <= tx_byte(3 downto 2);
-                    when 2 =>
+                    when "10" =>
                         txd_reg <= tx_byte(5 downto 4);
                     when others =>
                         txd_reg <= tx_byte(7 downto 6);
