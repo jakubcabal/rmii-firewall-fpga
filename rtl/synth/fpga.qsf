@@ -17,13 +17,17 @@ set_global_assignment -name VHDL_FILE ../comp/base/pll.vhd
 set_global_assignment -name VHDL_FILE ../comp/base/fifo_mark.vhd
 set_global_assignment -name VHDL_FILE ../comp/base/fifo.vhd
 set_global_assignment -name VHDL_FILE ../comp/base/asfifo.vhd
+set_global_assignment -name VHDL_FILE ../comp/base/sys_module.vhd
 set_global_assignment -name VHDL_FILE ../comp/rmii_mac/rx_rmii_mac.vhd
+set_global_assignment -name VHDL_FILE ../comp/rmii_mac/tx_rmii_mac.vhd
+set_global_assignment -name VHDL_FILE ../comp/rmii_mac/rmii_mac.vhd
 set_global_assignment -name VHDL_FILE ../comp/uart2wbm/uart_debouncer.vhd
 set_global_assignment -name VHDL_FILE ../comp/uart2wbm/uart_parity.vhd
 set_global_assignment -name VHDL_FILE ../comp/uart2wbm/uart_tx.vhd
 set_global_assignment -name VHDL_FILE ../comp/uart2wbm/uart_rx.vhd
 set_global_assignment -name VHDL_FILE ../comp/uart2wbm/uart.vhd
 set_global_assignment -name VHDL_FILE ../comp/uart2wbm/uart2wbm.vhd
+set_global_assignment -name VHDL_FILE ../comp/wb_splitter/wb_splitter.vhd
 set_global_assignment -name VHDL_FILE ../fpga.vhd
 
 # TIMING CONSTRAINTS
@@ -32,9 +36,22 @@ set_global_assignment -name SDC_FILE fpga.sdc
 # FPGA PINS ASSIGNMENT
 set_location_assignment PIN_M2 -to CLK_12M
 set_location_assignment PIN_N6 -to RST_BTN_N
+
 set_location_assignment PIN_F13 -to ETH0_CLK
 set_location_assignment PIN_F15 -to ETH0_RXD[0]
 set_location_assignment PIN_F16 -to ETH0_RXD[1]
 set_location_assignment PIN_D16 -to ETH0_CSR_DV
+set_location_assignment PIN_C15 -to ETH0_TXD[0]
+set_location_assignment PIN_B16 -to ETH0_TXD[1]
+set_location_assignment PIN_C16 -to ETH0_TX_EN
+
+set_location_assignment PIN_N2 -to ETH1_CLK
+set_location_assignment PIN_N1 -to ETH1_RXD[0]
+set_location_assignment PIN_P2 -to ETH1_RXD[1]
+set_location_assignment PIN_J1 -to ETH1_CSR_DV
+set_location_assignment PIN_J2 -to ETH1_TXD[0]
+set_location_assignment PIN_K2 -to ETH1_TXD[1]
+set_location_assignment PIN_L2 -to ETH1_TX_EN
+
 set_location_assignment PIN_T7 -to UART_TXD
 set_location_assignment PIN_R7 -to UART_RXD
