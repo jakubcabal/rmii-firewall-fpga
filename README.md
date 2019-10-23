@@ -25,5 +25,17 @@ PORT --->| MASTER  |                       | MODULE  |
 * UART2WB MASTER - Transmits the Wishbone requests and responses via UART interface (Wishbone bus master module).
 * SYSTEM MODULE - Basic system control and status registers (version, debug space etc.) accessible via Wishbone bus.
 
+## Address space
+```
+0xOOOO - 0x3FFF -- System module
+0x4000 - 0x40FF -- ETH0 RX RMII MAC module
+0x4100 - 0x41FF -- ETH0 TX RMII MAC module
+0x4200 - 0x5FFF -- Reserved
+0x6000 - 0x60FF -- ETH1 RX RMII MAC module
+0x6100 - 0x61FF -- ETH1 TX RMII MAC module
+0x6200 - 0x7FFF -- Reserved
+0x8000 - 0xBFFF -- Firewall app modules (TODO)
+0xC000 - 0xFFFF -- Reserved
+```
 ## License
 The RMII Firewall FPGA is available under the MIT license (MIT). Please read [LICENSE file](LICENSE).
