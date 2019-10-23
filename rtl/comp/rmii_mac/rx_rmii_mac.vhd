@@ -90,6 +90,9 @@ architecture RTL of RX_RMII_MAC is
     signal sb1_eop  : std_logic;
     signal sb1_vld  : std_logic;
 
+    signal pkt_in_progress     : std_logic;
+    signal pkt_in_progress_reg : std_logic;
+
     signal cnt_rx_pkt : unsigned(31 downto 0);
     signal cnt_tx_pkt : unsigned(31 downto 0);
 
@@ -303,7 +306,7 @@ begin
     end process;
 
     -- -------------------------------------------------------------------------
-    --  FRAME CHECK
+    --  FRAME CHECK (TODO)
     -- -------------------------------------------------------------------------
 
     sb1_data <= sb0_data;
@@ -344,6 +347,19 @@ begin
     process (USER_CLK)
     begin
         if (rising_edge(USER_CLK)) then
+            if (USER_RST = '1' or (sb1_eop = '1' and sb1_vld = '1')) then
+                pkt_in_progress_reg <= '0';
+            elsif (sb1_sop = '1' and sb1_vld = '1') then
+                pkt_in_progress_reg <= '1';
+            end if;
+        end if;
+    end process;
+
+    pkt_in_progress <= pkt_in_progress_reg or (sb1_sop and sb1_vld);
+
+    process (USER_CLK)
+    begin
+        if (rising_edge(USER_CLK)) then
             if (USER_RST = '1') then
                 fsm_fic_pstate <= idle;
             else
@@ -352,7 +368,7 @@ begin
         end if;
     end process;
 
-    process (fsm_fic_pstate, fifom_full, sb1_vld, sb1_sop, sb1_eop)
+    process (fsm_fic_pstate, fifom_full, sb1_vld, sb1_sop, sb1_eop, pkt_in_progress)
     begin
         fsm_fic_nstate <= idle;
         fifom_mark     <= '0';
@@ -362,6 +378,7 @@ begin
             when idle =>
                 fifom_mark <= '1';
                 if (fifom_full = '1') then
+                    fifom_discard <= '1';
                     fsm_fic_nstate <= discard;
                 elsif (sb1_vld = '1' and sb1_sop = '1') then
                     fsm_fic_nstate <= packet;
@@ -371,6 +388,7 @@ begin
 
             when packet =>
                 if (fifom_full = '1') then
+                    fifom_discard <= '1';
                     fsm_fic_nstate <= discard;
                 elsif (sb1_vld = '1' and sb1_eop = '1') then
                     fsm_fic_nstate <= idle;
@@ -380,7 +398,7 @@ begin
 
             when discard =>
                 fifom_discard <= '1';
-                if (sb1_vld = '0' and fifom_full = '0') then
+                if (pkt_in_progress = '0' and fifom_full = '0') then
                     fsm_fic_nstate <= idle;
                 else
                     fsm_fic_nstate <= discard;
