@@ -70,6 +70,7 @@ architecture RTL of TX_RMII_MAC is
     signal fsm_tx_pstate : fsm_tx_state;
     signal fsm_tx_nstate : fsm_tx_state;
     signal fsm_tx_enable : std_logic;
+    signal fsm_tx_dbg_st : std_logic_vector(2 downto 0);
 
     signal cnt_reg       : unsigned(3 downto 0);
     signal cnt_reg_next  : unsigned(3 downto 0);
@@ -140,7 +141,7 @@ begin
     rx_sop_synced  <= asfifo_dout(1);
     rx_eop_synced  <= asfifo_dout(0);
 
-    rx_eop_vld <= RX_VLD and RX_EOP;
+    rx_eop_vld <= rx_vld_en and rx_rdy_en and RX_EOP;
 
     eop_asfifo_i : entity work.ASFIFO
     generic map (
@@ -183,6 +184,7 @@ begin
         rx_sop_synced, rx_eop_synced, pkt_rdy, cnt_reg)
     begin
         fsm_tx_nstate <= idle;
+        fsm_tx_dbg_st <= "000";
         rx_rdy_synced <= '0';
         cnt_reg_next  <= (others => '0');
         pkt_rdy_next  <= '0';
@@ -191,6 +193,7 @@ begin
 
         case fsm_tx_pstate is
             when idle =>
+                fsm_tx_dbg_st <= "000";
                 if (rx_sop_synced = '1' and rx_vld_synced = '1' and pkt_rdy = '1') then
                     fsm_tx_nstate <= preamble;
                 else
@@ -198,6 +201,7 @@ begin
                 end if;
 
             when preamble => -- seven preamble bytes
+                fsm_tx_dbg_st <= "001";
                 cnt_reg_next <= cnt_reg + 1;
                 tx_byte <= X"55";
                 tx_en   <= '1';
@@ -209,6 +213,7 @@ begin
                 end if;
 
             when sfd => -- one SFD byte
+                fsm_tx_dbg_st <= "010";
                 pkt_rdy_next <= fsm_tx_enable;
                 tx_byte <= X"D5";
                 tx_en   <= '1';
@@ -216,6 +221,7 @@ begin
                 fsm_tx_nstate <= packet;
 
             when packet =>
+                fsm_tx_dbg_st <= "011";
                 rx_rdy_synced <= fsm_tx_enable;
                 tx_byte <= rx_data_synced;
                 tx_en   <= '1';
@@ -227,6 +233,7 @@ begin
                 end if;
 
             when ipg => -- inter packet gap = 12 bytes
+                fsm_tx_dbg_st <= "100";
                 cnt_reg_next <= cnt_reg + 1;
 
                 if (cnt_reg = 11) then
@@ -245,10 +252,10 @@ begin
     process (RMII_CLK)
     begin
         if (rising_edge(RMII_CLK)) then
-            if (tx_en = '1') then
-                tx_cnt <= tx_cnt + 1;
-            else
+            if (RMII_RST = '1') then
                 tx_cnt <= (others => '0');
+            else
+                tx_cnt <= tx_cnt + 1;
             end if;
         end if;
     end process;
@@ -258,20 +265,16 @@ begin
     process (RMII_CLK)
     begin
         if (rising_edge(RMII_CLK)) then
-            if (tx_en = '1') then
-                case tx_cnt is
-                    when "00" =>
-                        txd_reg <= tx_byte(1 downto 0);
-                    when "01" =>
-                        txd_reg <= tx_byte(3 downto 2);
-                    when "10" =>
-                        txd_reg <= tx_byte(5 downto 4);
-                    when others =>
-                        txd_reg <= tx_byte(7 downto 6);
-                end case;
-            else
-                txd_reg <= (others => '0');
-            end if;
+            case tx_cnt is
+                when "00" =>
+                    txd_reg <= tx_byte(1 downto 0);
+                when "01" =>
+                    txd_reg <= tx_byte(3 downto 2);
+                when "10" =>
+                    txd_reg <= tx_byte(5 downto 4);
+                when others =>
+                    txd_reg <= tx_byte(7 downto 6);
+            end case;
         end if;
     end process;
 
