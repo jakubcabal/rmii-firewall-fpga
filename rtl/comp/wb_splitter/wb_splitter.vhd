@@ -44,9 +44,9 @@ end entity;
 
 architecture RTL of WB_SPLITTER is
 
-    constant PORT_SEL_W : natural := integer(ceil(log2(real(MASTER_PORTS))));
+    constant PORT_SEL_W  : natural := integer(ceil(log2(real(MASTER_PORTS))));
+    constant WB_ADDR_GND : std_logic_vector(16-ADDR_OFFSET-1 downto 0) := (others => '0');
 
-    signal wb_addr_gnd     : std_logic_vector(16-ADDR_OFFSET-1 downto 0) := (others => '0');
     signal wb_port_sel_bin : std_logic_vector(PORT_SEL_W-1 downto 0);
     signal wb_port_sel     : std_logic_vector(MASTER_PORTS-1 downto 0);
 
@@ -69,7 +69,7 @@ begin
         WB_M_CYC(i) <= WB_S_CYC and wb_port_sel(i);
         WB_M_STB(i) <= WB_S_STB and wb_port_sel(i);
         WB_M_WE(i)  <= WB_S_WE and wb_port_sel(i);
-        WB_M_ADDR((i+1)*16-1 downto i*16) <= wb_addr_gnd & WB_S_ADDR(ADDR_OFFSET-1 downto 0);
+        WB_M_ADDR((i+1)*16-1 downto i*16) <= WB_ADDR_GND & WB_S_ADDR(ADDR_OFFSET-1 downto 0);
         WB_M_DOUT((i+1)*32-1 downto i*32) <= WB_S_DIN;
     end generate;
 
