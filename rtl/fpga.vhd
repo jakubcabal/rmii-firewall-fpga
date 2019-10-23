@@ -92,7 +92,7 @@ begin
 
     rst_btn <= not RST_BTN_N;
 
-	pll_i : entity work.PLL
+    pll_i : entity work.PLL
     port map (
         IN_CLK_12M     => CLK_12M,
         IN_RST_BTN     => rst_btn,
@@ -124,7 +124,7 @@ begin
         SYNCED_RST => rst_eth1
     );
 
-	uart2wbm_i : entity work.UART2WBM
+    uart2wbm_i : entity work.UART2WBM
     generic map (
         CLK_FREQ  => 25e6,
         BAUD_RATE => 9600
@@ -136,10 +136,10 @@ begin
         UART_TXD => UART_TXD,
         UART_RXD => UART_RXD,
         -- WISHBONE MASTER INTERFACE
-	    WB_CYC   => wb_master_cyc,
-	    WB_STB   => wb_master_stb,
-	    WB_WE    => wb_master_we,
-	    WB_ADDR  => wb_master_addr,
+        WB_CYC   => wb_master_cyc,
+        WB_STB   => wb_master_stb,
+        WB_WE    => wb_master_we,
+        WB_ADDR  => wb_master_addr,
         WB_DOUT  => wb_master_dout,
         WB_STALL => wb_master_stall,
         WB_ACK   => wb_master_ack,
@@ -181,10 +181,10 @@ begin
         RST      => rst_usr,
 
         -- WISHBONE SLAVE INTERFACE
-	    WB_CYC   => wb_mbs_cyc(0),
-	    WB_STB   => wb_mbs_stb(0),
-	    WB_WE    => wb_mbs_we(0),
-	    WB_ADDR  => wb_mbs_addr((0+1)*16-1 downto 0*16),
+        WB_CYC   => wb_mbs_cyc(0),
+        WB_STB   => wb_mbs_stb(0),
+        WB_WE    => wb_mbs_we(0),
+        WB_ADDR  => wb_mbs_addr((0+1)*16-1 downto 0*16),
         WB_DIN   => wb_mbs_dout((0+1)*32-1 downto 0*32),
         WB_STALL => wb_mbs_stall(0),
         WB_ACK   => wb_mbs_ack(0),
@@ -248,10 +248,10 @@ begin
         RX_RDY  => eth10_rdy,
 
         -- WISHBONE SLAVE INTERFACE (USER_CLK)
-	    WB_CYC   => wb_mes_cyc(0),
-	    WB_STB   => wb_mes_stb(0),
-	    WB_WE    => wb_mes_we(0),
-	    WB_ADDR  => wb_mes_addr((0+1)*16-1 downto 0*16),
+        WB_CYC   => wb_mes_cyc(0),
+        WB_STB   => wb_mes_stb(0),
+        WB_WE    => wb_mes_we(0),
+        WB_ADDR  => wb_mes_addr((0+1)*16-1 downto 0*16),
         WB_DIN   => wb_mes_dout((0+1)*32-1 downto 0*32),
         WB_STALL => wb_mes_stall(0),
         WB_ACK   => wb_mes_ack(0),
@@ -287,10 +287,10 @@ begin
         RX_RDY  => eth01_rdy,
 
         -- WISHBONE SLAVE INTERFACE (USER_CLK)
-	    WB_CYC   => wb_mes_cyc(1),
-	    WB_STB   => wb_mes_stb(1),
-	    WB_WE    => wb_mes_we(1),
-	    WB_ADDR  => wb_mes_addr((1+1)*16-1 downto 1*16),
+        WB_CYC   => wb_mes_cyc(1),
+        WB_STB   => wb_mes_stb(1),
+        WB_WE    => wb_mes_we(1),
+        WB_ADDR  => wb_mes_addr((1+1)*16-1 downto 1*16),
         WB_DIN   => wb_mes_dout((1+1)*32-1 downto 1*32),
         WB_STALL => wb_mes_stall(1),
         WB_ACK   => wb_mes_ack(1),
