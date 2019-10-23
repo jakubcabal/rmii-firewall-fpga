@@ -9,6 +9,8 @@ library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
+-- Only 100 Mbps full duplex mode is supported now.
+
 entity RX_RMII_MAC is
     Port (
         -- CLOCKS AND RESETS
