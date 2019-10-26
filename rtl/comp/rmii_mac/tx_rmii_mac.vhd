@@ -64,7 +64,8 @@ architecture RTL of TX_RMII_MAC is
     signal pkt_rdy      : std_logic;
     signal pkt_rdy_next : std_logic;
 
-    signal cnt_tx_pkt : unsigned(31 downto 0);
+    signal cnt_rx_pkt     : unsigned(31 downto 0);
+    signal cnt_rx_pkt_reg : std_logic_vector(31 downto 0);
 
     type fsm_tx_state is (idle, preamble, sfd, packet, ipg);
     signal fsm_tx_pstate : fsm_tx_state;
@@ -81,13 +82,14 @@ architecture RTL of TX_RMII_MAC is
     signal txd_reg   : std_logic_vector(1 downto 0);
     signal tx_en_reg : std_logic;
 
-    signal cmd_sel          : std_logic;
-    signal cmd_we           : std_logic;
-    signal cmd_enable_reset : std_logic;
-    signal cmd_enable_set   : std_logic;
-    signal cmd_cnt_clear    : std_logic;
+    signal cmd_sel        : std_logic;
+    signal cmd_we         : std_logic;
+    signal cmd_disable    : std_logic;
+    signal cmd_enable     : std_logic;
+    signal cmd_cnt_clear  : std_logic;
+    signal cmd_cnt_sample : std_logic;
 
-    signal enable_reg : std_logic;
+    signal disable_reg : std_logic;
 
 begin
 
@@ -99,9 +101,9 @@ begin
     begin
         if (rising_edge(USER_CLK)) then
             if (USER_RST = '1' or cmd_cnt_clear = '1') then
-                cnt_tx_pkt <= (others => '0');
+                cnt_rx_pkt <= (others => '0');
             elsif (RX_EOP = '1' and rx_vld_en = '1' and rx_rdy_en = '1') then
-                cnt_tx_pkt <= cnt_tx_pkt + 1;
+                cnt_rx_pkt <= cnt_rx_pkt + 1;
             end if;
         end if;
     end process;
@@ -110,8 +112,8 @@ begin
     --  RX DATA BUFFER
     -- -------------------------------------------------------------------------
 
-    rx_rdy_en <= enable_reg and not asfifo_full;
-    rx_vld_en <= RX_VLD and enable_reg;
+    rx_rdy_en <= not disable_reg and not asfifo_full;
+    rx_vld_en <= RX_VLD and not disable_reg;
 
     RX_RDY <= rx_rdy_en;
 
@@ -302,28 +304,41 @@ begin
     cmd_reg_p : process (USER_CLK)
     begin
         if (rising_edge(USER_CLK)) then
-            cmd_enable_reset <= '0';
-            cmd_enable_set   <= '0';
-            cmd_cnt_clear    <= '0';
+            cmd_disable    <= '0';
+            cmd_enable     <= '0';
+            cmd_cnt_clear  <= '0';
+            cmd_cnt_sample <= '0';
             if (cmd_we = '1' and WB_DIN(7 downto 0) = X"00") then
-                cmd_enable_reset <= '1';
+                cmd_disable <= '1';
             end if;
             if (cmd_we = '1' and WB_DIN(7 downto 0) = X"01") then
-                cmd_enable_set <= '1';
+                cmd_enable <= '1';
             end if;
             if (cmd_we = '1' and WB_DIN(7 downto 0) = X"02") then
                 cmd_cnt_clear <= '1';
             end if;
+            if (cmd_we = '1' and WB_DIN(7 downto 0) = X"03") then
+                cmd_cnt_sample <= '1';
+            end if;
         end if;
     end process;
 
-    enable_reg_p : process (USER_CLK)
+    disable_reg_p : process (USER_CLK)
     begin
         if (rising_edge(USER_CLK)) then
-            if (USER_RST = '1' or cmd_enable_set = '1') then
-                enable_reg <= '1';
-            elsif (cmd_enable_reset = '1') then
-                enable_reg <= '0';
+            if (USER_RST = '1' or cmd_enable = '1') then
+                disable_reg <= '0';
+            elsif (cmd_disable = '1') then
+                disable_reg <= '1';
+            end if;
+        end if;
+    end process;
+
+    cnt_sampled_reg_p : process (USER_CLK)
+    begin
+        if (rising_edge(USER_CLK)) then
+            if (cmd_cnt_sample = '1') then
+                cnt_rx_pkt_reg <= std_logic_vector(cnt_rx_pkt);
             end if;
         end if;
     end process;
@@ -342,11 +357,11 @@ begin
         if (rising_edge(USER_CLK)) then
             case WB_ADDR(7 downto 0) is
                 when X"00" =>
-                    WB_DOUT <= (31 downto 1 => '0') & enable_reg;
+                    WB_DOUT <= X"20191026"; -- version
                 when X"04" =>
-                    WB_DOUT <= (31 downto 2 => '0') & asfifo_full & enable_reg;
+                    WB_DOUT <= (31 downto 8 => '0') & "00" & (not asfifo_full) & RX_VLD & "000" & disable_reg;
                 when X"10" =>
-                    WB_DOUT <= std_logic_vector(cnt_tx_pkt);
+                    WB_DOUT <= cnt_rx_pkt_reg;
                 when others =>
                     WB_DOUT <= X"DEADCAFE";
             end case;

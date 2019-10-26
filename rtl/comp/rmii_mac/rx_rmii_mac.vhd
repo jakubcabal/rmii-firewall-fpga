@@ -93,12 +93,15 @@ architecture RTL of RX_RMII_MAC is
     signal pkt_in_progress     : std_logic;
     signal pkt_in_progress_reg : std_logic;
 
-    signal cnt_rx_pkt : unsigned(31 downto 0);
-    signal cnt_tx_pkt : unsigned(31 downto 0);
+    signal cnt_rx_pkt     : unsigned(31 downto 0);
+    signal cnt_rx_pkt_reg : std_logic_vector(31 downto 0);
+    signal cnt_tx_pkt     : unsigned(31 downto 0);
+    signal cnt_tx_pkt_reg : std_logic_vector(31 downto 0);
 
     type fsm_fic_state is (idle, packet, discard);
     signal fsm_fic_pstate : fsm_fic_state;
     signal fsm_fic_nstate : fsm_fic_state;
+    signal fsm_fic_dbg_st : std_logic_vector(1 downto 0);
 
     signal fifom_din      : std_logic_vector(FIFO_DATA_WIDTH-1 downto 0);
     signal fifom_wr       : std_logic;
@@ -110,14 +113,15 @@ architecture RTL of RX_RMII_MAC is
     signal fifom_rd       : std_logic;
     signal fifom_status   : std_logic_vector(FIFO_ADDR_WIDTH-1 downto 0);
 
-    signal cmd_sel          : std_logic;
-    signal cmd_we           : std_logic;
-    signal cmd_enable_reset : std_logic;
-    signal cmd_enable_set   : std_logic;
-    signal cmd_cnt_clear    : std_logic;
+    signal cmd_sel        : std_logic;
+    signal cmd_we         : std_logic;
+    signal cmd_enable     : std_logic;
+    signal cmd_disable    : std_logic;
+    signal cmd_cnt_clear  : std_logic;
+    signal cmd_cnt_sample : std_logic;
 
-    signal enable_reg : std_logic;
-    signal status_reg : std_logic_vector(31 downto 0);
+    signal disable_reg    : std_logic;
+    signal status_reg     : std_logic_vector(31 downto 0);
 
 begin
 
@@ -371,11 +375,13 @@ begin
     process (fsm_fic_pstate, fifom_full, sb1_vld, sb1_sop, sb1_eop, pkt_in_progress)
     begin
         fsm_fic_nstate <= idle;
+        fsm_fic_dbg_st <= "00";
         fifom_mark     <= '0';
         fifom_discard  <= '0';
 
         case fsm_fic_pstate is
             when idle =>
+                fsm_fic_dbg_st <= "00";
                 fifom_mark <= '1';
                 if (fifom_full = '1') then
                     fifom_discard <= '1';
@@ -387,6 +393,7 @@ begin
                 end if;
 
             when packet =>
+                fsm_fic_dbg_st <= "01";
                 if (fifom_full = '1') then
                     fifom_discard <= '1';
                     fsm_fic_nstate <= discard;
@@ -397,6 +404,7 @@ begin
                 end if;
 
             when discard =>
+                fsm_fic_dbg_st <= "10";
                 fifom_discard <= '1';
                 if (pkt_in_progress = '0' and fifom_full = '0') then
                     fsm_fic_nstate <= idle;
@@ -432,12 +440,12 @@ begin
         STATUS      => fifom_status
     );
 
-    fifom_rd <= TX_RDY and enable_reg;
+    fifom_rd <= TX_RDY and not disable_reg;
 
     TX_DATA <= fifom_dout(8+2-1 downto 2);
     TX_SOP  <= fifom_dout(1);
     TX_EOP  <= fifom_dout(0);
-    TX_VLD  <= fifom_dout_vld and enable_reg;
+    TX_VLD  <= fifom_dout_vld and not disable_reg;
 
     -- -------------------------------------------------------------------------
     --  WISHBONE SLAVE LOGIC
@@ -449,33 +457,53 @@ begin
     cmd_reg_p : process (USER_CLK)
     begin
         if (rising_edge(USER_CLK)) then
-            cmd_enable_reset <= '0';
-            cmd_enable_set   <= '0';
-            cmd_cnt_clear    <= '0';
+            cmd_enable     <= '0';
+            cmd_disable    <= '0';
+            cmd_cnt_clear  <= '0';
+            cmd_cnt_sample <= '0';
             if (cmd_we = '1' and WB_DIN(7 downto 0) = X"00") then
-                cmd_enable_reset <= '1';
+                cmd_enable <= '1';
             end if;
             if (cmd_we = '1' and WB_DIN(7 downto 0) = X"01") then
-                cmd_enable_set <= '1';
+                cmd_disable <= '1';
             end if;
             if (cmd_we = '1' and WB_DIN(7 downto 0) = X"02") then
                 cmd_cnt_clear <= '1';
             end if;
-        end if;
-    end process;
-
-    enable_reg_p : process (USER_CLK)
-    begin
-        if (rising_edge(USER_CLK)) then
-            if (USER_RST = '1' or cmd_enable_set = '1') then
-                enable_reg <= '1';
-            elsif (cmd_enable_reset = '1') then
-                enable_reg <= '0';
+            if (cmd_we = '1' and WB_DIN(7 downto 0) = X"03") then
+                cmd_cnt_sample <= '1';
             end if;
         end if;
     end process;
 
-    status_reg <= (31 downto 19 => '0') & fifom_status & "000" & fifom_full & "00" & fsm_dec_dbg_st;
+    disable_reg_p : process (USER_CLK)
+    begin
+        if (rising_edge(USER_CLK)) then
+            if (USER_RST = '1' or cmd_disable = '1') then
+                disable_reg <= '0';
+            elsif (cmd_enable = '1') then
+                disable_reg <= '1';
+            end if;
+        end if;
+    end process;
+
+    cnt_sampled_reg_p : process (USER_CLK)
+    begin
+        if (rising_edge(USER_CLK)) then
+            if (cmd_cnt_sample = '1') then
+                cnt_rx_pkt_reg <= std_logic_vector(cnt_rx_pkt);
+                cnt_tx_pkt_reg <= std_logic_vector(cnt_tx_pkt);
+            end if;
+        end if;
+    end process;
+
+    --status_reg <= (31 downto 19 => '0') & fifom_status & "000" & fifom_full & "00" & fsm_dec_dbg_st;
+    status_reg <= (31 downto 27 => '0') &
+                  fifom_status & 
+                  "00" & fsm_fic_dbg_st &
+                  "00" & fsm_dec_dbg_st &
+                  (not fifom_full) & fifom_wr & TX_RDY & fifom_dout_vld &
+                  "000" & disable_reg;
 
     WB_STALL <= '0';
 
@@ -491,13 +519,13 @@ begin
         if (rising_edge(USER_CLK)) then
             case WB_ADDR(7 downto 0) is
                 when X"00" =>
-                    WB_DOUT <= (31 downto 1 => '0') & enable_reg;
+                    WB_DOUT <= X"20191027"; -- version
                 when X"04" =>
                     WB_DOUT <= status_reg;
                 when X"10" =>
-                    WB_DOUT <= std_logic_vector(cnt_rx_pkt);
+                    WB_DOUT <= cnt_rx_pkt_reg;
                 when X"14" =>
-                    WB_DOUT <= std_logic_vector(cnt_tx_pkt);
+                    WB_DOUT <= cnt_tx_pkt_reg;
                 when others =>
                     WB_DOUT <= X"DEADCAFE";
             end case;
