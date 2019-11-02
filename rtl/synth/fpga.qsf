@@ -28,6 +28,7 @@ set_global_assignment -name VHDL_FILE ../comp/uart2wbm/uart_rx.vhd
 set_global_assignment -name VHDL_FILE ../comp/uart2wbm/uart.vhd
 set_global_assignment -name VHDL_FILE ../comp/uart2wbm/uart2wbm.vhd
 set_global_assignment -name VHDL_FILE ../comp/wb_splitter/wb_splitter.vhd
+set_global_assignment -name VHDL_FILE ../comp/firewall/parser.vhd
 set_global_assignment -name VHDL_FILE ../fpga.vhd
 
 # TIMING CONSTRAINTS
