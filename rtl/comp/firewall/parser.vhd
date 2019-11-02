@@ -153,9 +153,9 @@ begin
 
             when ethertype =>
                 if (RX_VLD = '1' and offset = 13) then
-                    if (RX_DATA = X"08" and rx_data_reg = X"00") then
+                    if (rx_data_reg = X"08" and RX_DATA = X"00") then
                         fsm_nstate <= ipv4_src;
-                    elsif (RX_DATA = X"86" and rx_data_reg = X"DD") then
+                    elsif (rx_data_reg = X"86" and RX_DATA = X"DD") then
                         fsm_nstate <= ipv6_src;
                     else
                         fsm_nstate <= done;
@@ -218,7 +218,7 @@ begin
     begin
         if (rising_edge(CLK)) then
             if (mac_dst_shreg_en = '1') then
-                mac_dst_shreg <= RX_DATA & mac_dst_shreg(47 downto 8);
+                mac_dst_shreg <= mac_dst_shreg(47-8 downto 0) & RX_DATA;
             end if;
         end if;
     end process;
@@ -227,7 +227,7 @@ begin
     begin
         if (rising_edge(CLK)) then
             if (mac_src_shreg_en = '1') then
-                mac_src_shreg <= RX_DATA & mac_src_shreg(47 downto 8);
+                mac_src_shreg <= mac_src_shreg(47-8 downto 0) & RX_DATA;
             end if;
         end if;
     end process;
@@ -236,7 +236,7 @@ begin
     begin
         if (rising_edge(CLK)) then
             if (ipv4_dst_shreg_en = '1') then
-                ipv4_dst_shreg <= RX_DATA & ipv4_dst_shreg(31 downto 8);
+                ipv4_dst_shreg <= ipv4_dst_shreg(31-8 downto 0) & RX_DATA;
             end if;
         end if;
     end process;
@@ -245,7 +245,7 @@ begin
     begin
         if (rising_edge(CLK)) then
             if (ipv4_src_shreg_en = '1') then
-                ipv4_src_shreg <= RX_DATA & ipv4_src_shreg(31 downto 8);
+                ipv4_src_shreg <= ipv4_src_shreg(31-8 downto 0) & RX_DATA;
             end if;
         end if;
     end process;
@@ -254,7 +254,7 @@ begin
     begin
         if (rising_edge(CLK)) then
             if (ipv6_dst_shreg_en = '1') then
-                ipv6_dst_shreg <= RX_DATA & ipv6_dst_shreg(127 downto 8);
+                ipv6_dst_shreg <= ipv6_dst_shreg(127-8 downto 0) & RX_DATA;
             end if;
         end if;
     end process;
@@ -263,7 +263,7 @@ begin
     begin
         if (rising_edge(CLK)) then
             if (ipv6_src_shreg_en = '1') then
-                ipv6_src_shreg <= RX_DATA & ipv6_src_shreg(127 downto 8);
+                ipv6_src_shreg <= ipv6_src_shreg(127-8 downto 0) & RX_DATA;
             end if;
         end if;
     end process;
