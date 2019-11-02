@@ -98,6 +98,36 @@ architecture RTL of RX_RMII_MAC is
     signal cnt_tx_pkt     : unsigned(31 downto 0);
     signal cnt_tx_pkt_reg : std_logic_vector(31 downto 0);
 
+    signal cnt_bytes       : unsigned(13 downto 0);
+    signal cnt_bytes_next  : unsigned(13 downto 0);
+
+    signal rx_pkt_undersize    : std_logic;
+    signal rx_pkt_64_to_127    : std_logic;
+    signal rx_pkt_128_to_255   : std_logic;
+    signal rx_pkt_256_to_511   : std_logic;
+    signal rx_pkt_512_to_767   : std_logic;
+    signal rx_pkt_768_to_1023  : std_logic;
+    signal rx_pkt_1024_to_1522 : std_logic;
+    signal rx_pkt_oversize     : std_logic;
+
+    signal cnt_rx_pkt_undersize    : unsigned(31 downto 0);
+    signal cnt_rx_pkt_64_to_127    : unsigned(31 downto 0);
+    signal cnt_rx_pkt_128_to_255   : unsigned(31 downto 0);
+    signal cnt_rx_pkt_256_to_511   : unsigned(31 downto 0);
+    signal cnt_rx_pkt_512_to_767   : unsigned(31 downto 0);
+    signal cnt_rx_pkt_768_to_1023  : unsigned(31 downto 0);
+    signal cnt_rx_pkt_1024_to_1522 : unsigned(31 downto 0);
+    signal cnt_rx_pkt_oversize     : unsigned(31 downto 0);
+
+    signal cnt_rx_pkt_undersize_reg    : std_logic_vector(31 downto 0);
+    signal cnt_rx_pkt_64_to_127_reg    : std_logic_vector(31 downto 0);
+    signal cnt_rx_pkt_128_to_255_reg   : std_logic_vector(31 downto 0);
+    signal cnt_rx_pkt_256_to_511_reg   : std_logic_vector(31 downto 0);
+    signal cnt_rx_pkt_512_to_767_reg   : std_logic_vector(31 downto 0);
+    signal cnt_rx_pkt_768_to_1023_reg  : std_logic_vector(31 downto 0);
+    signal cnt_rx_pkt_1024_to_1522_reg : std_logic_vector(31 downto 0);
+    signal cnt_rx_pkt_oversize_reg     : std_logic_vector(31 downto 0);
+
     type fsm_fic_state is (idle, packet, discard);
     signal fsm_fic_pstate : fsm_fic_state;
     signal fsm_fic_nstate : fsm_fic_state;
@@ -344,6 +374,116 @@ begin
         end if;
     end process;
 
+    process (USER_CLK)
+    begin
+        if (rising_edge(USER_CLK)) then
+            if (USER_RST = '1' or (sb1_eop = '1' and sb1_vld = '1')) then
+                cnt_bytes <= (others => '0');
+            elsif (sb1_vld = '1') then
+                cnt_bytes <= cnt_bytes_next;
+            end if;
+        end if;
+    end process;
+
+    cnt_bytes_next <= cnt_bytes + 1;
+
+    rx_pkt_undersize    <= '1' when (cnt_bytes_next < 64) else '0';
+    rx_pkt_64_to_127    <= '1' when (cnt_bytes_next >= 64 and cnt_bytes_next < 128) else '0';
+    rx_pkt_128_to_255   <= '1' when (cnt_bytes_next >= 128 and cnt_bytes_next < 256) else '0';
+    rx_pkt_256_to_511   <= '1' when (cnt_bytes_next >= 256 and cnt_bytes_next < 512) else '0';
+    rx_pkt_512_to_767   <= '1' when (cnt_bytes_next >= 512 and cnt_bytes_next < 768) else '0';
+    rx_pkt_768_to_1023  <= '1' when (cnt_bytes_next >= 768 and cnt_bytes_next < 1024) else '0';
+    rx_pkt_1024_to_1522 <= '1' when (cnt_bytes_next >= 1024 and cnt_bytes_next < 1522) else '0';
+    rx_pkt_oversize     <= '1' when (cnt_bytes_next > 1522) else '0';
+
+    process (USER_CLK)
+    begin
+        if (rising_edge(USER_CLK)) then
+            if (USER_RST = '1' or cmd_cnt_clear = '1') then
+                cnt_rx_pkt_undersize <= (others => '0');
+            elsif (sb1_eop = '1' and sb1_vld = '1' and rx_pkt_undersize = '1') then
+                cnt_rx_pkt_undersize <= cnt_rx_pkt_undersize + 1;
+            end if;
+        end if;
+    end process;
+
+    process (USER_CLK)
+    begin
+        if (rising_edge(USER_CLK)) then
+            if (USER_RST = '1' or cmd_cnt_clear = '1') then
+                cnt_rx_pkt_64_to_127 <= (others => '0');
+            elsif (sb1_eop = '1' and sb1_vld = '1' and rx_pkt_64_to_127 = '1') then
+                cnt_rx_pkt_64_to_127 <= cnt_rx_pkt_64_to_127 + 1;
+            end if;
+        end if;
+    end process;
+
+    process (USER_CLK)
+    begin
+        if (rising_edge(USER_CLK)) then
+            if (USER_RST = '1' or cmd_cnt_clear = '1') then
+                cnt_rx_pkt_128_to_255 <= (others => '0');
+            elsif (sb1_eop = '1' and sb1_vld = '1' and rx_pkt_128_to_255 = '1') then
+                cnt_rx_pkt_128_to_255 <= cnt_rx_pkt_128_to_255 + 1;
+            end if;
+        end if;
+    end process;
+
+    process (USER_CLK)
+    begin
+        if (rising_edge(USER_CLK)) then
+            if (USER_RST = '1' or cmd_cnt_clear = '1') then
+                cnt_rx_pkt_256_to_511 <= (others => '0');
+            elsif (sb1_eop = '1' and sb1_vld = '1' and rx_pkt_256_to_511 = '1') then
+                cnt_rx_pkt_256_to_511 <= cnt_rx_pkt_256_to_511 + 1;
+            end if;
+        end if;
+    end process;
+
+    process (USER_CLK)
+    begin
+        if (rising_edge(USER_CLK)) then
+            if (USER_RST = '1' or cmd_cnt_clear = '1') then
+                cnt_rx_pkt_512_to_767 <= (others => '0');
+            elsif (sb1_eop = '1' and sb1_vld = '1' and rx_pkt_512_to_767 = '1') then
+                cnt_rx_pkt_512_to_767 <= cnt_rx_pkt_512_to_767 + 1;
+            end if;
+        end if;
+    end process;
+
+    process (USER_CLK)
+    begin
+        if (rising_edge(USER_CLK)) then
+            if (USER_RST = '1' or cmd_cnt_clear = '1') then
+                cnt_rx_pkt_768_to_1023 <= (others => '0');
+            elsif (sb1_eop = '1' and sb1_vld = '1' and rx_pkt_768_to_1023 = '1') then
+                cnt_rx_pkt_768_to_1023 <= cnt_rx_pkt_768_to_1023 + 1;
+            end if;
+        end if;
+    end process;
+
+    process (USER_CLK)
+    begin
+        if (rising_edge(USER_CLK)) then
+            if (USER_RST = '1' or cmd_cnt_clear = '1') then
+                cnt_rx_pkt_1024_to_1522 <= (others => '0');
+            elsif (sb1_eop = '1' and sb1_vld = '1' and rx_pkt_1024_to_1522 = '1') then
+                cnt_rx_pkt_1024_to_1522 <= cnt_rx_pkt_1024_to_1522 + 1;
+            end if;
+        end if;
+    end process;
+
+    process (USER_CLK)
+    begin
+        if (rising_edge(USER_CLK)) then
+            if (USER_RST = '1' or cmd_cnt_clear = '1') then
+                cnt_rx_pkt_oversize <= (others => '0');
+            elsif (sb1_eop = '1' and sb1_vld = '1' and rx_pkt_oversize = '1') then
+                cnt_rx_pkt_oversize <= cnt_rx_pkt_oversize + 1;
+            end if;
+        end if;
+    end process;
+
     -- -------------------------------------------------------------------------
     --  STORE AND FORWARD/DISCARD FIFO
     -- -------------------------------------------------------------------------
@@ -493,11 +633,18 @@ begin
             if (cmd_cnt_sample = '1') then
                 cnt_rx_pkt_reg <= std_logic_vector(cnt_rx_pkt);
                 cnt_tx_pkt_reg <= std_logic_vector(cnt_tx_pkt);
+                cnt_rx_pkt_undersize_reg <= std_logic_vector(cnt_rx_pkt_undersize);
+                cnt_rx_pkt_64_to_127_reg <= std_logic_vector(cnt_rx_pkt_64_to_127);
+                cnt_rx_pkt_128_to_255_reg <= std_logic_vector(cnt_rx_pkt_128_to_255);
+                cnt_rx_pkt_256_to_511_reg <= std_logic_vector(cnt_rx_pkt_256_to_511);
+                cnt_rx_pkt_512_to_767_reg <= std_logic_vector(cnt_rx_pkt_512_to_767);
+                cnt_rx_pkt_768_to_1023_reg <= std_logic_vector(cnt_rx_pkt_768_to_1023);
+                cnt_rx_pkt_1024_to_1522_reg <= std_logic_vector(cnt_rx_pkt_1024_to_1522);
+                cnt_rx_pkt_oversize_reg <= std_logic_vector(cnt_rx_pkt_oversize);
             end if;
         end if;
     end process;
 
-    --status_reg <= (31 downto 19 => '0') & fifom_status & "000" & fifom_full & "00" & fsm_dec_dbg_st;
     status_reg <= (31 downto 27 => '0') &
                   fifom_status & 
                   "00" & fsm_fic_dbg_st &
@@ -519,13 +666,29 @@ begin
         if (rising_edge(USER_CLK)) then
             case WB_ADDR(7 downto 0) is
                 when X"00" =>
-                    WB_DOUT <= X"20191027"; -- version
+                    WB_DOUT <= X"20191102"; -- version
                 when X"04" =>
                     WB_DOUT <= status_reg;
                 when X"10" =>
                     WB_DOUT <= cnt_rx_pkt_reg;
                 when X"14" =>
                     WB_DOUT <= cnt_tx_pkt_reg;
+                when X"20" =>
+                    WB_DOUT <= cnt_rx_pkt_undersize_reg;
+                when X"24" =>
+                    WB_DOUT <= cnt_rx_pkt_64_to_127_reg;
+                when X"28" =>
+                    WB_DOUT <= cnt_rx_pkt_128_to_255_reg;
+                when X"2C" =>
+                    WB_DOUT <= cnt_rx_pkt_256_to_511_reg;
+                when X"30" =>
+                    WB_DOUT <= cnt_rx_pkt_512_to_767_reg;
+                when X"34" =>
+                    WB_DOUT <= cnt_rx_pkt_768_to_1023_reg;
+                when X"38" =>
+                    WB_DOUT <= cnt_rx_pkt_1024_to_1522_reg;
+                when X"3C" =>
+                    WB_DOUT <= cnt_rx_pkt_oversize_reg;
                 when others =>
                     WB_DOUT <= X"DEADCAFE";
             end case;
