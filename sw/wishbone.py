@@ -14,7 +14,7 @@ class wishbone:
     def __init__(self, port="COM1", baudrate=9600):
         self.uart = serial.Serial(port, baudrate, timeout=2)
         print("The UART on " + self.uart.name + " is open.")
-        print("The wishbone bus is ready.")
+        print("The wishbone bus is ready.\n")
 
     def read(self,addr):
         cmd = 0x0
