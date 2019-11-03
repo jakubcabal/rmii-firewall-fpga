@@ -28,13 +28,14 @@ PORT --->| MASTER  |                       | MODULE  |
 ## Address space
 ```
 0xOOOO - 0x3FFF -- System module
-0x4000 - 0x40FF -- ETH0 RX RMII MAC module
-0x4100 - 0x41FF -- ETH0 TX RMII MAC module
+0x4000 - 0x40FF -- ETH PORT0 - RX RMII MAC module
+0x4100 - 0x41FF -- ETH PORT0 - TX RMII MAC module
 0x4200 - 0x5FFF -- Reserved
-0x6000 - 0x60FF -- ETH1 RX RMII MAC module
-0x6100 - 0x61FF -- ETH1 TX RMII MAC module
+0x6000 - 0x60FF -- ETH PORT1 - RX RMII MAC module
+0x6100 - 0x61FF -- ETH PORT1 - TX RMII MAC module
 0x6200 - 0x7FFF -- Reserved
-0x8000 - 0xBFFF -- Firewall app modules (TODO)
+0x8000 - 0x7FFF -- Firewall module (ETH PORT0 to PORT1)
+0xA000 - 0xBFFF -- Firewall module (ETH PORT1 to PORT0)
 0xC000 - 0xFFFF -- Reserved
 ```
 ## License
