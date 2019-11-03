@@ -34,10 +34,12 @@ end entity;
 
 architecture FULL of FPGA is
 
-    constant WB_BASE_PORTS  : natural := 4;  -- system, eth, app, reserved
+    constant WB_BASE_PORTS  : natural := 4;  -- system, eth, app (firewall), reserved
     constant WB_BASE_OFFSET : natural := 14;
     constant WB_ETH_PORTS   : natural := 2;  -- eth0, eth1
     constant WB_ETH_OFFSET  : natural := 13;
+    constant WB_APP_PORTS   : natural := 2;  -- app0, app1
+    constant WB_APP_OFFSET  : natural := 13;
 
     signal rst_btn : std_logic;
 
@@ -76,17 +78,38 @@ architecture FULL of FPGA is
     signal wb_mes_ack   : std_logic_vector(WB_ETH_PORTS-1 downto 0);
     signal wb_mes_dout  : std_logic_vector(WB_ETH_PORTS*32-1 downto 0);
 
+    signal wb_mas_cyc   : std_logic_vector(WB_APP_PORTS-1 downto 0);
+    signal wb_mas_stb   : std_logic_vector(WB_APP_PORTS-1 downto 0);
+    signal wb_mas_we    : std_logic_vector(WB_APP_PORTS-1 downto 0);
+    signal wb_mas_addr  : std_logic_vector(WB_APP_PORTS*16-1 downto 0);
+    signal wb_mas_din   : std_logic_vector(WB_APP_PORTS*32-1 downto 0);
+    signal wb_mas_stall : std_logic_vector(WB_APP_PORTS-1 downto 0);
+    signal wb_mas_ack   : std_logic_vector(WB_APP_PORTS-1 downto 0);
+    signal wb_mas_dout  : std_logic_vector(WB_APP_PORTS*32-1 downto 0);
+
     signal eth01_data : std_logic_vector(7 downto 0);
     signal eth01_sop  : std_logic;
     signal eth01_eop  : std_logic;
     signal eth01_vld  : std_logic;
     signal eth01_rdy  : std_logic;
 
+    signal eth01f_data : std_logic_vector(7 downto 0);
+    signal eth01f_sop  : std_logic;
+    signal eth01f_eop  : std_logic;
+    signal eth01f_vld  : std_logic;
+    signal eth01f_rdy  : std_logic;
+
     signal eth10_data : std_logic_vector(7 downto 0);
     signal eth10_sop  : std_logic;
     signal eth10_eop  : std_logic;
     signal eth10_vld  : std_logic;
     signal eth10_rdy  : std_logic;
+
+    signal eth10f_data : std_logic_vector(7 downto 0);
+    signal eth10f_sop  : std_logic;
+    signal eth10f_eop  : std_logic;
+    signal eth10f_vld  : std_logic;
+    signal eth10f_rdy  : std_logic;
 
 begin
 
@@ -241,11 +264,11 @@ begin
         TX_RDY  => eth01_rdy,
 
         -- USER INPUT STREAM INTERFACE (USER_CLK)
-        RX_DATA => eth10_data,
-        RX_SOP  => eth10_sop,
-        RX_EOP  => eth10_eop,
-        RX_VLD  => eth10_vld,
-        RX_RDY  => eth10_rdy,
+        RX_DATA => eth10f_data,
+        RX_SOP  => eth10f_sop,
+        RX_EOP  => eth10f_eop,
+        RX_VLD  => eth10f_vld,
+        RX_RDY  => eth10f_rdy,
 
         -- WISHBONE SLAVE INTERFACE (USER_CLK)
         WB_CYC   => wb_mes_cyc(0),
@@ -256,6 +279,88 @@ begin
         WB_STALL => wb_mes_stall(0),
         WB_ACK   => wb_mes_ack(0),
         WB_DOUT  => wb_mes_din((0+1)*32-1 downto 0*32)
+    );
+
+    wb_splitter_app_i : entity work.WB_SPLITTER
+    generic map (
+        MASTER_PORTS => WB_APP_PORTS,
+        ADDR_OFFSET  => WB_APP_OFFSET
+    )
+    port map (
+        CLK        => clk_usr,
+        RST        => rst_usr,
+
+        WB_S_CYC   => wb_mbs_cyc(2),
+        WB_S_STB   => wb_mbs_stb(2),
+        WB_S_WE    => wb_mbs_we(2),
+        WB_S_ADDR  => wb_mbs_addr((2+1)*16-1 downto 2*16),
+        WB_S_DIN   => wb_mbs_dout((2+1)*32-1 downto 2*32),
+        WB_S_STALL => wb_mbs_stall(2),
+        WB_S_ACK   => wb_mbs_ack(2),
+        WB_S_DOUT  => wb_mbs_din((2+1)*32-1 downto 2*32),
+
+        WB_M_CYC   => wb_mas_cyc,
+        WB_M_STB   => wb_mas_stb,
+        WB_M_WE    => wb_mas_we,
+        WB_M_ADDR  => wb_mas_addr,
+        WB_M_DOUT  => wb_mas_dout,
+        WB_M_STALL => wb_mas_stall,
+        WB_M_ACK   => wb_mas_ack,
+        WB_M_DIN   => wb_mas_din
+    );
+
+    firewall01_i : entity work.FIREWALL
+    port map (
+        CLK => clk_usr,
+        RST => rst_usr,
+
+        RX_DATA => eth01_data,
+        RX_SOP  => eth01_sop,
+        RX_EOP  => eth01_eop,
+        RX_VLD  => eth01_vld,
+        RX_RDY  => eth01_rdy,
+
+        TX_DATA => eth01f_data,
+        TX_SOP  => eth01f_sop,
+        TX_EOP  => eth01f_eop,
+        TX_VLD  => eth01f_vld,
+        TX_RDY  => eth01f_rdy,
+
+        WB_CYC   => wb_mas_cyc(0),
+        WB_STB   => wb_mas_stb(0),
+        WB_WE    => wb_mas_we(0),
+        WB_ADDR  => wb_mas_addr((0+1)*16-1 downto 0*16),
+        WB_DIN   => wb_mas_dout((0+1)*32-1 downto 0*32),
+        WB_STALL => wb_mas_stall(0),
+        WB_ACK   => wb_mas_ack(0),
+        WB_DOUT  => wb_mas_din((0+1)*32-1 downto 0*32)
+    );
+
+    firewall10_i : entity work.FIREWALL
+    port map (
+        CLK => clk_usr,
+        RST => rst_usr,
+
+        RX_DATA => eth10_data,
+        RX_SOP  => eth10_sop,
+        RX_EOP  => eth10_eop,
+        RX_VLD  => eth10_vld,
+        RX_RDY  => eth10_rdy,
+
+        TX_DATA => eth10f_data,
+        TX_SOP  => eth10f_sop,
+        TX_EOP  => eth10f_eop,
+        TX_VLD  => eth10f_vld,
+        TX_RDY  => eth10f_rdy,
+
+        WB_CYC   => wb_mas_cyc(1),
+        WB_STB   => wb_mas_stb(1),
+        WB_WE    => wb_mas_we(1),
+        WB_ADDR  => wb_mas_addr((1+1)*16-1 downto 1*16),
+        WB_DIN   => wb_mas_dout((1+1)*32-1 downto 1*32),
+        WB_STALL => wb_mas_stall(1),
+        WB_ACK   => wb_mas_ack(1),
+        WB_DOUT  => wb_mas_din((1+1)*32-1 downto 1*32)
     );
 
     eth1_mac_i : entity work.RMII_MAC
@@ -280,11 +385,11 @@ begin
         TX_RDY  => eth10_rdy,
 
         -- USER INPUT STREAM INTERFACE (USER_CLK)
-        RX_DATA => eth01_data,
-        RX_SOP  => eth01_sop,
-        RX_EOP  => eth01_eop,
-        RX_VLD  => eth01_vld,
-        RX_RDY  => eth01_rdy,
+        RX_DATA => eth01f_data,
+        RX_SOP  => eth01f_sop,
+        RX_EOP  => eth01f_eop,
+        RX_VLD  => eth01f_vld,
+        RX_RDY  => eth01f_rdy,
 
         -- WISHBONE SLAVE INTERFACE (USER_CLK)
         WB_CYC   => wb_mes_cyc(1),
