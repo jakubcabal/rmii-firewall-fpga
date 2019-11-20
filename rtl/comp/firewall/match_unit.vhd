@@ -30,7 +30,7 @@ entity MATCH_UNIT is
         -- WRITE INTERFACE
         WRITE_DATA : in  std_logic_vector(DATA_WIDTH-1 downto 0);
         WRITE_ENA  : in  std_logic;
-        WRITE_ADDR : in  std_logic_vector(DATA_WIDTH-1 downto 0);
+        WRITE_ADDR : in  std_logic_vector(ADDR_WIDTH-1 downto 0);
         WRITE_REQ  : in  std_logic
     );
 end entity;
@@ -70,13 +70,13 @@ begin
         RST         => RST,
 
         WR_DATA     => ram_wr_data,
-        WR_ADDR     => WR_ADDR,
-        WR_REQ      => WR_REQ,
+        WR_ADDR     => WRITE_ADDR,
+        WR_REQ      => WRITE_REQ,
 
         RD_ADDR     => ram_rd_addr,
         RD_REQ      => match_run,
         RD_DATA     => ram_rd_data,
-        RD_DATA_VLD => ram_rd_data_vld,
+        RD_DATA_VLD => ram_rd_data_vld
     );
 
     process (CLK)

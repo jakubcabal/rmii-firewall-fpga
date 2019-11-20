@@ -25,7 +25,7 @@ entity SDP_RAM is
         RD_ADDR     : in  std_logic_vector(ADDR_WIDTH-1 downto 0);
         RD_REQ      : in  std_logic;
         RD_DATA     : out std_logic_vector(DATA_WIDTH-1 downto 0);
-        RD_DATA_VLD : out std_logic;
+        RD_DATA_VLD : out std_logic
     );
 end entity;
 

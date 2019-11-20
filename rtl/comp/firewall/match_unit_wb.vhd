@@ -65,6 +65,12 @@ architecture RTL of MATCH_UNIT_WB is
     signal cmd_cnt_clear  : std_logic;
     signal cmd_cnt_sample : std_logic;
 
+    signal addr_sel       : std_logic;
+    signal addr_we        : std_logic;
+
+    signal data_sel       : std_logic;
+    signal data_we        : std_logic;
+
     signal status_reg     : std_logic_vector(31 downto 0);
 
 begin
@@ -86,7 +92,7 @@ begin
         MATCH_REQ  => MATCH_REQ,
         MATCH_BUSY => MATCH_BUSY,
         MATCH_ADDR => MATCH_ADDR,
-        MATCH_HIT  => match_ok_sig,
+        MATCH_HIT  => match_hit_sig,
         MATCH_VLD  => match_vld_sig,
 
         WRITE_DATA => wr_data_reg(DATA_WIDTH-1 downto 0),
