@@ -43,15 +43,36 @@ end entity;
 
 architecture RTL of FIREWALL is
 
-    signal parser_data    : std_logic_vector(7 downto 0);
-    signal parser_sop     : std_logic;
-    signal parser_eop     : std_logic;
-    signal parser_vld     : std_logic;
-    signal parser_rdy     : std_logic;
-    signal parser_eop_vld : std_logic;
+    constant WB_PORTS   : natural := 8;
+    constant WB_OFFSET  : natural := 10;
 
+    signal wb_mfs_cyc   : std_logic_vector(WB_PORTS-1 downto 0);
+    signal wb_mfs_stb   : std_logic_vector(WB_PORTS-1 downto 0);
+    signal wb_mfs_we    : std_logic_vector(WB_PORTS-1 downto 0);
+    signal wb_mfs_addr  : std_logic_vector(WB_PORTS*16-1 downto 0);
+    signal wb_mfs_din   : std_logic_vector(WB_PORTS*32-1 downto 0);
+    signal wb_mfs_stall : std_logic_vector(WB_PORTS-1 downto 0);
+    signal wb_mfs_ack   : std_logic_vector(WB_PORTS-1 downto 0);
+    signal wb_mfs_dout  : std_logic_vector(WB_PORTS*32-1 downto 0);
+
+    signal parser_data     : std_logic_vector(7 downto 0);
+    signal parser_sop      : std_logic;
+    signal parser_eop      : std_logic;
+    signal parser_vld      : std_logic;
+    signal parser_rdy      : std_logic;
+    signal parser_eop_vld  : std_logic;
+    signal parser_ipv4_vld : std_logic;
+    signal parser_ipv6_vld : std_logic;
+
+    signal ex_ipv4_dst    : std_logic_vector(31 downto 0);
+    signal ex_ipv4_src    : std_logic_vector(31 downto 0);
     signal ex_ipv4_vld    : std_logic;
     signal ex_ipv6_vld    : std_logic;
+
+    signal match_ipv4_dst_hit : std_logic;
+    signal match_ipv4_dst_vld : std_logic;
+    signal match_ipv4_src_hit : std_logic;
+    signal match_ipv4_src_vld : std_logic;
 
     signal cnt_pkt        : unsigned(31 downto 0);
     signal cnt_ipv4       : unsigned(31 downto 0);
@@ -93,8 +114,8 @@ begin
         EX_MAC_DST  => open,
         EX_MAC_SRC  => open,
         EX_IPV4_VLD => ex_ipv4_vld,
-        EX_IPV4_DST => open,
-        EX_IPV4_SRC => open,
+        EX_IPV4_DST => ex_ipv4_dst,
+        EX_IPV4_SRC => ex_ipv4_src,
         EX_IPV6_VLD => ex_ipv6_vld,
         EX_IPV6_DST => open,
         EX_IPV6_SRC => open
@@ -106,7 +127,97 @@ begin
     TX_VLD     <= parser_vld;
     parser_rdy <= TX_RDY;
 
-    parser_eop_vld <= parser_vld and parser_rdy and parser_eop;
+    parser_eop_vld  <= parser_vld and parser_rdy and parser_eop;
+    parser_ipv4_vld <= parser_eop_vld and ex_ipv4_vld;
+    parser_ipv6_vld <= parser_eop_vld and ex_ipv6_vld;
+
+    -- -------------------------------------------------------------------------
+    --  WISHBONE SPLITTER
+    -- -------------------------------------------------------------------------
+
+    wb_splitter_i : entity work.WB_SPLITTER
+    generic map (
+        MASTER_PORTS => WB_PORTS,
+        ADDR_OFFSET  => WB_OFFSET
+    )
+    port map (
+        CLK        => CLK,
+        RST        => RST,
+
+        WB_S_CYC   => WB_CYC,
+        WB_S_STB   => WB_STB,
+        WB_S_WE    => WB_WE,
+        WB_S_ADDR  => WB_ADDR,
+        WB_S_DIN   => WB_DIN,
+        WB_S_STALL => WB_STALL,
+        WB_S_ACK   => WB_ACK,
+        WB_S_DOUT  => WB_DOUT,
+
+        WB_M_CYC   => wb_mfs_cyc,
+        WB_M_STB   => wb_mfs_stb,
+        WB_M_WE    => wb_mfs_we,
+        WB_M_ADDR  => wb_mfs_addr,
+        WB_M_DOUT  => wb_mfs_dout,
+        WB_M_STALL => wb_mfs_stall,
+        WB_M_ACK   => wb_mfs_ack,
+        WB_M_DIN   => wb_mfs_din
+    );
+
+    -- -------------------------------------------------------------------------
+    --  MATCH UNITS
+    -- -------------------------------------------------------------------------
+
+    match_ipv4_dst_i : entity work.MATCH_UNIT_WB
+    generic map (
+        DATA_WIDTH => 32,
+        ADDR_WIDTH => 5
+    )
+    port map (
+        CLK        => CLK,
+        RST        => RST,
+
+        MATCH_DATA => ex_ipv4_dst,
+        MATCH_REQ  => parser_ipv4_vld,
+        MATCH_BUSY => open,
+        MATCH_ADDR => open,
+        MATCH_HIT  => match_ipv4_dst_hit,
+        MATCH_VLD  => match_ipv4_dst_vld,
+
+        WB_CYC     => wb_mfs_cyc(3),
+        WB_STB     => wb_mfs_stb(3),
+        WB_WE      => wb_mfs_we(3),
+        WB_ADDR    => wb_mfs_addr((3+1)*16-1 downto 3*16),
+        WB_DIN     => wb_mfs_dout((3+1)*32-1 downto 3*32),
+        WB_STALL   => wb_mfs_stall(3),
+        WB_ACK     => wb_mfs_ack(3),
+        WB_DOUT    => wb_mfs_din((3+1)*32-1 downto 3*32)
+    );
+
+    match_ipv4_src_i : entity work.MATCH_UNIT_WB
+    generic map (
+        DATA_WIDTH => 32,
+        ADDR_WIDTH => 5
+    )
+    port map (
+        CLK        => CLK,
+        RST        => RST,
+
+        MATCH_DATA => ex_ipv4_src,
+        MATCH_REQ  => parser_ipv4_vld,
+        MATCH_BUSY => open,
+        MATCH_ADDR => open,
+        MATCH_HIT  => match_ipv4_src_hit,
+        MATCH_VLD  => match_ipv4_src_vld,
+
+        WB_CYC     => wb_mfs_cyc(4),
+        WB_STB     => wb_mfs_stb(4),
+        WB_WE      => wb_mfs_we(4),
+        WB_ADDR    => wb_mfs_addr((4+1)*16-1 downto 4*16),
+        WB_DIN     => wb_mfs_dout((4+1)*32-1 downto 4*32),
+        WB_STALL   => wb_mfs_stall(4),
+        WB_ACK     => wb_mfs_ack(4),
+        WB_DOUT    => wb_mfs_din((4+1)*32-1 downto 4*32)
+    );
 
     -- -------------------------------------------------------------------------
     --  STATISTICS COUNTERS
@@ -128,7 +239,7 @@ begin
         if (rising_edge(CLK)) then
             if (RST = '1' or cmd_cnt_clear = '1') then
                 cnt_ipv4 <= (others => '0');
-            elsif (parser_eop_vld = '1' and ex_ipv4_vld = '1') then
+            elsif (parser_ipv4_vld = '1') then
                 cnt_ipv4 <= cnt_ipv4 + 1;
             end if;
         end if;
@@ -149,8 +260,8 @@ begin
     --  WISHBONE SLAVE LOGIC
     -- -------------------------------------------------------------------------
 
-    cmd_sel <= '1' when (WB_ADDR(7 downto 0) = X"00") else '0';
-    cmd_we  <= WB_STB and WB_WE and cmd_sel;
+    cmd_sel <= '1' when (wb_mfs_addr(7 downto 0) = X"00") else '0';
+    cmd_we  <= wb_mfs_stb(0) and wb_mfs_we(0) and cmd_sel;
 
     cmd_reg_p : process (CLK)
     begin
@@ -159,16 +270,16 @@ begin
             cmd_disable    <= '0';
             cmd_cnt_clear  <= '0';
             cmd_cnt_sample <= '0';
-            if (cmd_we = '1' and WB_DIN(7 downto 0) = X"00") then
+            if (cmd_we = '1' and wb_mfs_din(7 downto 0) = X"00") then
                 cmd_enable <= '1';
             end if;
-            if (cmd_we = '1' and WB_DIN(7 downto 0) = X"01") then
+            if (cmd_we = '1' and wb_mfs_din(7 downto 0) = X"01") then
                 cmd_disable <= '1';
             end if;
-            if (cmd_we = '1' and WB_DIN(7 downto 0) = X"02") then
+            if (cmd_we = '1' and wb_mfs_din(7 downto 0) = X"02") then
                 cmd_cnt_clear <= '1';
             end if;
-            if (cmd_we = '1' and WB_DIN(7 downto 0) = X"03") then
+            if (cmd_we = '1' and wb_mfs_din(7 downto 0) = X"03") then
                 cmd_cnt_sample <= '1';
             end if;
         end if;
@@ -198,31 +309,31 @@ begin
 
     status_reg <= (others => '0');
 
-    WB_STALL <= '0';
+    wb_mfs_stall(0) <= '0';
 
     wb_ack_reg_p : process (CLK)
     begin
         if (rising_edge(CLK)) then
-            WB_ACK <= WB_CYC and WB_STB;
+            wb_mfs_ack(0) <= wb_mfs_cyc(0) and wb_mfs_stb(0);
         end if;
     end process;
 
     wb_dout_reg_p : process (CLK)
     begin
         if (rising_edge(CLK)) then
-            case WB_ADDR(7 downto 0) is
+            case wb_mfs_addr(7 downto 0) is
                 when X"00" =>
-                    WB_DOUT <= X"20191103"; -- version
+                    wb_mfs_dout(31 downto 0) <= X"20191123"; -- version
                 when X"04" =>
-                    WB_DOUT <= status_reg;
+                    wb_mfs_dout(31 downto 0) <= status_reg;
                 when X"10" =>
-                    WB_DOUT <= cnt_pkt_reg;
+                    wb_mfs_dout(31 downto 0) <= cnt_pkt_reg;
                 when X"14" =>
-                    WB_DOUT <= cnt_ipv4_reg;
+                    wb_mfs_dout(31 downto 0) <= cnt_ipv4_reg;
                 when X"18" =>
-                    WB_DOUT <= cnt_ipv6_reg;
+                    wb_mfs_dout(31 downto 0) <= cnt_ipv6_reg;
                 when others =>
-                    WB_DOUT <= X"DEADCAFE";
+                    wb_mfs_dout(31 downto 0) <= X"DEADCAFE";
             end case;
         end if;
     end process;

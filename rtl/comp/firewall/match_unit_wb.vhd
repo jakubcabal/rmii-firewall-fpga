@@ -169,10 +169,10 @@ begin
     cmd_sel <= '1' when (WB_ADDR(7 downto 0) = X"00") else '0';
     cmd_we  <= WB_STB and WB_WE and cmd_sel;
 
-    addr_sel <= '1' when (WB_ADDR(7 downto 0) = X"10") else '0';
+    addr_sel <= '1' when (WB_ADDR(7 downto 0) = X"08") else '0';
     addr_we  <= WB_STB and WB_WE and addr_sel;
 
-    data_sel <= '1' when (WB_ADDR(7 downto 0) = X"18") else '0';
+    data_sel <= '1' when (WB_ADDR(7 downto 0) = X"0C") else '0';
     data_we  <= WB_STB and WB_WE and data_sel;
 
     cmd_reg_p : process (CLK)
@@ -207,7 +207,7 @@ begin
         end if;
     end process;
 
-    status_reg <= (others => '0');
+    status_reg <= std_logic_vector(to_unsigned(WB_WORDS,32));
 
     WB_STALL <= '0';
 
@@ -223,15 +223,15 @@ begin
         if (rising_edge(CLK)) then
             case WB_ADDR(7 downto 0) is
                 when X"00" =>
-                    WB_DOUT <= X"20191120"; -- version
+                    WB_DOUT <= X"20191121"; -- version
                 when X"04" =>
                     WB_DOUT <= status_reg;
                 when X"08" =>
-                    WB_DOUT <= cnt_pkt_reg;
-                when X"0C" =>
-                    WB_DOUT <= cnt_hit_reg;
-                when X"10" =>
                     WB_DOUT <= wr_addr_reg;
+                when X"10" =>
+                    WB_DOUT <= cnt_pkt_reg;
+                when X"14" =>
+                    WB_DOUT <= cnt_hit_reg;
                 when others =>
                     WB_DOUT <= X"DEADCAFE";
             end case;

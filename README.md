@@ -21,7 +21,7 @@ PORT --->| MASTER  |                       | MODULE  |
 ## Main modules description
 
 * RMII MAC - Receiving and transmitting Ethernet packets on the RMII interface (limitations: only 100 Mbps full duplex mode, no CRC checking).
-* FIREWALL APP - Parses (extraction of MAC and IP addresses) and filters incoming packets by MAC or IP address (not yet implemented).
+* FIREWALL APP - Parses (extraction of MAC and IP addresses) and filters incoming packets by MAC or IP address.
 * UART2WB MASTER - Transmits the Wishbone requests and responses via UART interface (Wishbone bus master module).
 * SYSTEM MODULE - Basic system control and status registers (version, debug space etc.) accessible via Wishbone bus.
 
@@ -34,9 +34,22 @@ PORT --->| MASTER  |                       | MODULE  |
 0x6000 - 0x60FF -- ETH PORT1 - RX RMII MAC module
 0x6100 - 0x61FF -- ETH PORT1 - TX RMII MAC module
 0x6200 - 0x7FFF -- Reserved
-0x8000 - 0x7FFF -- Firewall module (ETH PORT0 to PORT1)
-0xA000 - 0xBFFF -- Firewall module (ETH PORT1 to PORT0)
-0xC000 - 0xFFFF -- Reserved
+0x8000 - 0x83FF -- Firewall module (ETH PORT0 to PORT1)
+0x8400 - 0x87FF -- MatchUnit MAC_DST (ETH PORT0 to PORT1) - TODO
+0x8800 - 0x8BFF -- MatchUnit MAC_SRC (ETH PORT0 to PORT1) - TODO
+0x8C00 - 0x8FFF -- MatchUnit IPV4_DST (ETH PORT0 to PORT1)
+0x9000 - 0x93FF -- MatchUnit IPV4_SRC (ETH PORT0 to PORT1)
+0x9400 - 0x97FF -- MatchUnit IPV6_DST (ETH PORT0 to PORT1) - TODO
+0x9800 - 0x9BFF -- MatchUnit IPV6_SRC (ETH PORT0 to PORT1) - TODO
+0x9C00 - 0x9FFF -- Reserved
+0xA000 - 0xA3FF -- Firewall module (ETH PORT1 to PORT0)
+0xA400 - 0xA7FF -- MatchUnit MAC_DST (ETH PORT1 to PORT0) - TODO
+0xA800 - 0xABFF -- MatchUnit MAC_SRC (ETH PORT1 to PORT0) - TODO
+0xAC00 - 0xAFFF -- MatchUnit IPV4_DST (ETH PORT1 to PORT0)
+0xB000 - 0xB3FF -- MatchUnit IPV4_SRC (ETH PORT1 to PORT0)
+0xB400 - 0xB7FF -- MatchUnit IPV6_DST (ETH PORT1 to PORT0) - TODO
+0xB800 - 0xBBFF -- MatchUnit IPV6_SRC (ETH PORT1 to PORT0) - TODO
+0xBC00 - 0xFFFF -- Reserved
 ```
 ## License
 The RMII Firewall FPGA is available under the MIT license (MIT). Please read [LICENSE file](LICENSE).

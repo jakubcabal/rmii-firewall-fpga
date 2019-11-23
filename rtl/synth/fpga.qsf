@@ -18,6 +18,7 @@ set_global_assignment -name VHDL_FILE ../comp/base/fifo_mark.vhd
 set_global_assignment -name VHDL_FILE ../comp/base/fifo.vhd
 set_global_assignment -name VHDL_FILE ../comp/base/asfifo.vhd
 set_global_assignment -name VHDL_FILE ../comp/base/sys_module.vhd
+set_global_assignment -name VHDL_FILE ../comp/base/sdp_ram.vhd
 set_global_assignment -name VHDL_FILE ../comp/rmii_mac/rx_rmii_mac.vhd
 set_global_assignment -name VHDL_FILE ../comp/rmii_mac/tx_rmii_mac.vhd
 set_global_assignment -name VHDL_FILE ../comp/rmii_mac/rmii_mac.vhd
@@ -29,6 +30,8 @@ set_global_assignment -name VHDL_FILE ../comp/uart2wbm/uart.vhd
 set_global_assignment -name VHDL_FILE ../comp/uart2wbm/uart2wbm.vhd
 set_global_assignment -name VHDL_FILE ../comp/wb_splitter/wb_splitter.vhd
 set_global_assignment -name VHDL_FILE ../comp/firewall/parser.vhd
+set_global_assignment -name VHDL_FILE ../comp/firewall/match_unit.vhd
+set_global_assignment -name VHDL_FILE ../comp/firewall/match_unit_wb.vhd
 set_global_assignment -name VHDL_FILE ../comp/firewall/firewall.vhd
 set_global_assignment -name VHDL_FILE ../fpga.vhd
 
