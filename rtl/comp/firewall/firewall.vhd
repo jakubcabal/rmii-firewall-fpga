@@ -50,9 +50,9 @@ architecture RTL of FIREWALL is
     signal wb_mfs_stb   : std_logic_vector(WB_PORTS-1 downto 0);
     signal wb_mfs_we    : std_logic_vector(WB_PORTS-1 downto 0);
     signal wb_mfs_addr  : std_logic_vector(WB_PORTS*16-1 downto 0);
-    signal wb_mfs_din   : std_logic_vector(WB_PORTS*32-1 downto 0);
-    signal wb_mfs_stall : std_logic_vector(WB_PORTS-1 downto 0);
-    signal wb_mfs_ack   : std_logic_vector(WB_PORTS-1 downto 0);
+    signal wb_mfs_din   : std_logic_vector(WB_PORTS*32-1 downto 0) := (others => '0');
+    signal wb_mfs_stall : std_logic_vector(WB_PORTS-1 downto 0) := (others => '0');
+    signal wb_mfs_ack   : std_logic_vector(WB_PORTS-1 downto 0) := (others => '0');
     signal wb_mfs_dout  : std_logic_vector(WB_PORTS*32-1 downto 0);
 
     signal parser_data     : std_logic_vector(7 downto 0);
@@ -270,16 +270,16 @@ begin
             cmd_disable    <= '0';
             cmd_cnt_clear  <= '0';
             cmd_cnt_sample <= '0';
-            if (cmd_we = '1' and wb_mfs_din(7 downto 0) = X"00") then
+            if (cmd_we = '1' and wb_mfs_dout(7 downto 0) = X"00") then
                 cmd_enable <= '1';
             end if;
-            if (cmd_we = '1' and wb_mfs_din(7 downto 0) = X"01") then
+            if (cmd_we = '1' and wb_mfs_dout(7 downto 0) = X"01") then
                 cmd_disable <= '1';
             end if;
-            if (cmd_we = '1' and wb_mfs_din(7 downto 0) = X"02") then
+            if (cmd_we = '1' and wb_mfs_dout(7 downto 0) = X"02") then
                 cmd_cnt_clear <= '1';
             end if;
-            if (cmd_we = '1' and wb_mfs_din(7 downto 0) = X"03") then
+            if (cmd_we = '1' and wb_mfs_dout(7 downto 0) = X"03") then
                 cmd_cnt_sample <= '1';
             end if;
         end if;
@@ -323,17 +323,17 @@ begin
         if (rising_edge(CLK)) then
             case wb_mfs_addr(7 downto 0) is
                 when X"00" =>
-                    wb_mfs_dout(31 downto 0) <= X"20191123"; -- version
+                    wb_mfs_din(31 downto 0) <= X"20191123"; -- version
                 when X"04" =>
-                    wb_mfs_dout(31 downto 0) <= status_reg;
+                    wb_mfs_din(31 downto 0) <= status_reg;
                 when X"10" =>
-                    wb_mfs_dout(31 downto 0) <= cnt_pkt_reg;
+                    wb_mfs_din(31 downto 0) <= cnt_pkt_reg;
                 when X"14" =>
-                    wb_mfs_dout(31 downto 0) <= cnt_ipv4_reg;
+                    wb_mfs_din(31 downto 0) <= cnt_ipv4_reg;
                 when X"18" =>
-                    wb_mfs_dout(31 downto 0) <= cnt_ipv6_reg;
+                    wb_mfs_din(31 downto 0) <= cnt_ipv6_reg;
                 when others =>
-                    wb_mfs_dout(31 downto 0) <= X"DEADCAFE";
+                    wb_mfs_din(31 downto 0) <= X"DEADCAFE";
             end case;
         end if;
     end process;
