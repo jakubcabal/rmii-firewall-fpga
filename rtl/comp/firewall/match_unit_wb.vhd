@@ -21,6 +21,7 @@ entity MATCH_UNIT_WB is
 
         -- MATCH INTERFACE
         MATCH_DATA : in  std_logic_vector(DATA_WIDTH-1 downto 0);
+        MATCH_ENA  : in  std_logic;
         MATCH_REQ  : in  std_logic;
         MATCH_BUSY : out std_logic;
         MATCH_ADDR : out std_logic_vector(ADDR_WIDTH-1 downto 0);
@@ -53,17 +54,10 @@ architecture RTL of MATCH_UNIT_WB is
 
     signal index_reg      : integer range 0 to WB_WORDS-1;
 
-    signal cnt_pkt        : unsigned(31 downto 0);
-    signal cnt_hit        : unsigned(31 downto 0);
-    signal cnt_pkt_reg    : std_logic_vector(31 downto 0);
-    signal cnt_hit_reg    : std_logic_vector(31 downto 0);
-
     signal cmd_sel        : std_logic;
     signal cmd_we         : std_logic;
     signal cmd_set_rule   : std_logic;
     signal cmd_rst_rule   : std_logic;
-    signal cmd_cnt_clear  : std_logic;
-    signal cmd_cnt_sample : std_logic;
 
     signal addr_sel       : std_logic;
     signal addr_we        : std_logic;
@@ -89,6 +83,7 @@ begin
         RST        => RST,
 
         MATCH_DATA => MATCH_DATA,
+        MATCH_ENA  => MATCH_ENA,
         MATCH_REQ  => MATCH_REQ,
         MATCH_BUSY => MATCH_BUSY,
         MATCH_ADDR => MATCH_ADDR,
@@ -137,32 +132,6 @@ begin
     end process;
 
     -- -------------------------------------------------------------------------
-    --  STATISTICS COUNTERS
-    -- -------------------------------------------------------------------------
-
-    process (CLK)
-    begin
-        if (rising_edge(CLK)) then
-            if (RST = '1' or cmd_cnt_clear = '1') then
-                cnt_pkt <= (others => '0');
-            elsif (match_vld_sig = '1') then
-                cnt_pkt <= cnt_pkt + 1;
-            end if;
-        end if;
-    end process;
-
-    process (CLK)
-    begin
-        if (rising_edge(CLK)) then
-            if (RST = '1' or cmd_cnt_clear = '1') then
-                cnt_hit <= (others => '0');
-            elsif (match_vld_sig = '1' and match_hit_sig = '1') then
-                cnt_hit <= cnt_hit + 1;
-            end if;
-        end if;
-    end process;
-
-    -- -------------------------------------------------------------------------
     --  WISHBONE SLAVE LOGIC
     -- -------------------------------------------------------------------------
 
@@ -180,29 +149,11 @@ begin
         if (rising_edge(CLK)) then
             cmd_set_rule   <= '0';
             cmd_rst_rule   <= '0';
-            cmd_cnt_clear  <= '0';
-            cmd_cnt_sample <= '0';
             if (cmd_we = '1' and WB_DIN(7 downto 0) = X"00") then
                 cmd_set_rule <= '1';
             end if;
             if (cmd_we = '1' and WB_DIN(7 downto 0) = X"01") then
                 cmd_rst_rule <= '1';
-            end if;
-            if (cmd_we = '1' and WB_DIN(7 downto 0) = X"02") then
-                cmd_cnt_clear <= '1';
-            end if;
-            if (cmd_we = '1' and WB_DIN(7 downto 0) = X"03") then
-                cmd_cnt_sample <= '1';
-            end if;
-        end if;
-    end process;
-
-    cnt_sampled_reg_p : process (CLK)
-    begin
-        if (rising_edge(CLK)) then
-            if (cmd_cnt_sample = '1') then
-                cnt_pkt_reg <= std_logic_vector(cnt_pkt);
-                cnt_hit_reg <= std_logic_vector(cnt_hit);
             end if;
         end if;
     end process;
@@ -228,10 +179,6 @@ begin
                     WB_DOUT <= status_reg;
                 when X"08" =>
                     WB_DOUT <= wr_addr_reg;
-                when X"10" =>
-                    WB_DOUT <= cnt_pkt_reg;
-                when X"14" =>
-                    WB_DOUT <= cnt_hit_reg;
                 when others =>
                     WB_DOUT <= X"DEADCAFE";
             end case;

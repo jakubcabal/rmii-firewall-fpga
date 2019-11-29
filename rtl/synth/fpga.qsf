@@ -32,6 +32,7 @@ set_global_assignment -name VHDL_FILE ../comp/wb_splitter/wb_splitter.vhd
 set_global_assignment -name VHDL_FILE ../comp/firewall/parser.vhd
 set_global_assignment -name VHDL_FILE ../comp/firewall/match_unit.vhd
 set_global_assignment -name VHDL_FILE ../comp/firewall/match_unit_wb.vhd
+set_global_assignment -name VHDL_FILE ../comp/firewall/eraser.vhd
 set_global_assignment -name VHDL_FILE ../comp/firewall/firewall.vhd
 set_global_assignment -name VHDL_FILE ../fpga.vhd
 

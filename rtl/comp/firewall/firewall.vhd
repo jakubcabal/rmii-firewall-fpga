@@ -43,8 +43,10 @@ end entity;
 
 architecture RTL of FIREWALL is
 
-    constant WB_PORTS   : natural := 8;
-    constant WB_OFFSET  : natural := 10;
+    constant WB_PORTS        : natural := 8;
+    constant WB_OFFSET       : natural := 10;
+    constant FIFO_DATA_WIDTH : natural := 8+1+1; -- data + sop + eop
+    constant FIFO_ADDR_WIDTH : natural := 12; -- fifo depth = 4096 - 1 words
 
     signal wb_mfs_cyc   : std_logic_vector(WB_PORTS-1 downto 0);
     signal wb_mfs_stb   : std_logic_vector(WB_PORTS-1 downto 0);
@@ -64,23 +66,51 @@ architecture RTL of FIREWALL is
     signal parser_ipv4_vld : std_logic;
     signal parser_ipv6_vld : std_logic;
 
-    signal ex_ipv4_dst    : std_logic_vector(31 downto 0);
-    signal ex_ipv4_src    : std_logic_vector(31 downto 0);
-    signal ex_ipv4_vld    : std_logic;
-    signal ex_ipv6_vld    : std_logic;
+    signal ex_ipv4_dst     : std_logic_vector(31 downto 0);
+    signal ex_ipv4_src     : std_logic_vector(31 downto 0);
+    signal ex_ipv4_vld     : std_logic;
+    signal ex_ipv6_vld     : std_logic;
+
+    signal fifo_din        : std_logic_vector(FIFO_DATA_WIDTH-1 downto 0);
+    signal fifo_wr         : std_logic;
+    signal fifo_full       : std_logic;
+    signal fifo_dout       : std_logic_vector(FIFO_DATA_WIDTH-1 downto 0);
+    signal fifo_dout_vld   : std_logic;
+    signal fifo_rd         : std_logic;
+
+    signal stfi_data       : std_logic_vector(7 downto 0);
+    signal stfi_sop        : std_logic;
+    signal stfi_eop        : std_logic;
+    signal stfi_vld        : std_logic;
+    signal stfi_rdy        : std_logic;
+
+    signal eraser_data     : std_logic_vector(7 downto 0);
+    signal eraser_sop      : std_logic;
+    signal eraser_eop      : std_logic;
+    signal eraser_vld      : std_logic;
+    signal eraser_rdy      : std_logic;
 
     signal match_ipv4_dst_hit : std_logic;
     signal match_ipv4_dst_vld : std_logic;
     signal match_ipv4_src_hit : std_logic;
     signal match_ipv4_src_vld : std_logic;
+    signal match_hit          : std_logic;
+    signal match_vld          : std_logic;
 
-    signal cnt_pkt        : unsigned(31 downto 0);
-    signal cnt_ipv4       : unsigned(31 downto 0);
-    signal cnt_ipv6       : unsigned(31 downto 0);
+    signal cnt_pkt              : unsigned(31 downto 0);
+    signal cnt_ipv4             : unsigned(31 downto 0);
+    signal cnt_ipv6             : unsigned(31 downto 0);
+    signal cnt_ipv4_dst_hit     : unsigned(31 downto 0);
+    signal cnt_ipv4_src_hit     : unsigned(31 downto 0);
 
-    signal cnt_pkt_reg    : std_logic_vector(31 downto 0);
-    signal cnt_ipv4_reg   : std_logic_vector(31 downto 0);
-    signal cnt_ipv6_reg   : std_logic_vector(31 downto 0);
+    signal cnt_ipv4_dst_hit_en  : std_logic;
+    signal cnt_ipv4_src_hit_en  : std_logic;
+
+    signal cnt_pkt_reg          : std_logic_vector(31 downto 0);
+    signal cnt_ipv4_reg         : std_logic_vector(31 downto 0);
+    signal cnt_ipv6_reg         : std_logic_vector(31 downto 0);
+    signal cnt_ipv4_dst_hit_reg : std_logic_vector(31 downto 0);
+    signal cnt_ipv4_src_hit_reg : std_logic_vector(31 downto 0);
 
     signal cmd_sel        : std_logic;
     signal cmd_we         : std_logic;
@@ -93,43 +123,6 @@ architecture RTL of FIREWALL is
     signal status_reg     : std_logic_vector(31 downto 0);
 
 begin
-
-    parser_i : entity work.PARSER
-    port map (
-        CLK => CLK,
-        RST => RST,
-
-        RX_DATA => RX_DATA,
-        RX_SOP  => RX_SOP,
-        RX_EOP  => RX_EOP,
-        RX_VLD  => RX_VLD,
-        RX_RDY  => RX_RDY,
-
-        TX_DATA => parser_data,
-        TX_SOP  => parser_sop,
-        TX_EOP  => parser_eop,
-        TX_VLD  => parser_vld,
-        TX_RDY  => parser_rdy,
-
-        EX_MAC_DST  => open,
-        EX_MAC_SRC  => open,
-        EX_IPV4_VLD => ex_ipv4_vld,
-        EX_IPV4_DST => ex_ipv4_dst,
-        EX_IPV4_SRC => ex_ipv4_src,
-        EX_IPV6_VLD => ex_ipv6_vld,
-        EX_IPV6_DST => open,
-        EX_IPV6_SRC => open
-    );
-
-    TX_DATA    <= parser_data;
-    TX_SOP     <= parser_sop;
-    TX_EOP     <= parser_eop;
-    TX_VLD     <= parser_vld;
-    parser_rdy <= TX_RDY;
-
-    parser_eop_vld  <= parser_vld and parser_rdy and parser_eop;
-    parser_ipv4_vld <= parser_eop_vld and ex_ipv4_vld;
-    parser_ipv6_vld <= parser_eop_vld and ex_ipv6_vld;
 
     -- -------------------------------------------------------------------------
     --  WISHBONE SPLITTER
@@ -164,6 +157,75 @@ begin
     );
 
     -- -------------------------------------------------------------------------
+    --  PACKET PARSER
+    -- -------------------------------------------------------------------------
+
+    parser_i : entity work.PARSER
+    port map (
+        CLK => CLK,
+        RST => RST,
+
+        RX_DATA => RX_DATA,
+        RX_SOP  => RX_SOP,
+        RX_EOP  => RX_EOP,
+        RX_VLD  => RX_VLD,
+        RX_RDY  => RX_RDY,
+
+        TX_DATA => parser_data,
+        TX_SOP  => parser_sop,
+        TX_EOP  => parser_eop,
+        TX_VLD  => parser_vld,
+        TX_RDY  => parser_rdy,
+
+        EX_MAC_DST  => open,
+        EX_MAC_SRC  => open,
+        EX_IPV4_VLD => ex_ipv4_vld,
+        EX_IPV4_DST => ex_ipv4_dst,
+        EX_IPV4_SRC => ex_ipv4_src,
+        EX_IPV6_VLD => ex_ipv6_vld,
+        EX_IPV6_DST => open,
+        EX_IPV6_SRC => open
+    );
+
+    parser_eop_vld  <= parser_vld and parser_rdy and parser_eop;
+    parser_ipv4_vld <= parser_eop_vld and ex_ipv4_vld;
+    parser_ipv6_vld <= parser_eop_vld and ex_ipv6_vld;
+
+    -- -------------------------------------------------------------------------
+    --  STREAM FIFO
+    -- -------------------------------------------------------------------------
+
+    fifo_din   <= parser_data & parser_sop & parser_eop;
+    fifo_wr    <= parser_vld;
+    parser_rdy <= not fifo_full;
+
+    fifo_i : entity work.FIFO
+    generic map (
+        DATA_WIDTH => FIFO_DATA_WIDTH,
+        ADDR_WIDTH => FIFO_ADDR_WIDTH
+    )
+    port map (
+        CLK         => CLK,
+        RST         => RST,
+        -- FIFO WRITE INTERFACE
+        WR_DATA     => fifo_din,
+        WR_REQ      => fifo_wr,
+        WR_FULL     => fifo_full,
+        -- FIFO READ INTERFACE
+        RD_DATA     => fifo_dout,
+        RD_DATA_VLD => fifo_dout_vld,
+        RD_REQ      => fifo_rd,
+        -- FIFO OTHERS SIGNALS
+        STATUS      => open
+    );
+
+    fifo_rd   <= stfi_rdy;
+    stfi_data <= fifo_dout(8+2-1 downto 2);
+    stfi_sop  <= fifo_dout(1);
+    stfi_eop  <= fifo_dout(0);
+    stfi_vld  <= fifo_dout_vld;
+
+    -- -------------------------------------------------------------------------
     --  MATCH UNITS
     -- -------------------------------------------------------------------------
 
@@ -177,7 +239,8 @@ begin
         RST        => RST,
 
         MATCH_DATA => ex_ipv4_dst,
-        MATCH_REQ  => parser_ipv4_vld,
+        MATCH_ENA  => ex_ipv4_vld,
+        MATCH_REQ  => parser_eop_vld,
         MATCH_BUSY => open,
         MATCH_ADDR => open,
         MATCH_HIT  => match_ipv4_dst_hit,
@@ -203,7 +266,8 @@ begin
         RST        => RST,
 
         MATCH_DATA => ex_ipv4_src,
-        MATCH_REQ  => parser_ipv4_vld,
+        MATCH_ENA  => ex_ipv4_vld,
+        MATCH_REQ  => parser_eop_vld,
         MATCH_BUSY => open,
         MATCH_ADDR => open,
         MATCH_HIT  => match_ipv4_src_hit,
@@ -219,9 +283,46 @@ begin
         WB_DOUT    => wb_mfs_din((4+1)*32-1 downto 4*32)
     );
 
+    match_hit <= match_ipv4_dst_hit or match_ipv4_src_hit;
+    match_vld <= match_ipv4_dst_vld;
+
+    -- -------------------------------------------------------------------------
+    --  ERASER MODULE
+    -- -------------------------------------------------------------------------
+
+    eraser_i : entity work.ERASER
+    port map (
+        CLK             => CLK,
+        RST             => RST,
+
+        RX_META_DISCARD => match_hit,
+        RX_META_VLD     => match_vld,
+
+        RX_DATA         => stfi_data,
+        RX_SOP          => stfi_sop,
+        RX_EOP          => stfi_eop,
+        RX_VLD          => stfi_vld,
+        RX_RDY          => stfi_rdy,
+
+        TX_DATA         => eraser_data,
+        TX_SOP          => eraser_sop,
+        TX_EOP          => eraser_eop,
+        TX_VLD          => eraser_vld,
+        TX_RDY          => eraser_rdy
+    );
+
+    TX_DATA <= eraser_data;
+    TX_SOP  <= eraser_sop;
+    TX_EOP  <= eraser_eop;
+    TX_VLD  <= eraser_vld;
+    eraser_rdy <= TX_RDY;
+
     -- -------------------------------------------------------------------------
     --  STATISTICS COUNTERS
     -- -------------------------------------------------------------------------
+
+    cnt_ipv4_dst_hit_en <= match_ipv4_dst_vld and match_ipv4_dst_hit;
+    cnt_ipv4_src_hit_en <= match_ipv4_src_vld and match_ipv4_src_hit;
 
     process (CLK)
     begin
@@ -252,6 +353,28 @@ begin
                 cnt_ipv6 <= (others => '0');
             elsif (parser_eop_vld = '1' and ex_ipv6_vld = '1') then
                 cnt_ipv6 <= cnt_ipv6 + 1;
+            end if;
+        end if;
+    end process;
+
+    process (CLK)
+    begin
+        if (rising_edge(CLK)) then
+            if (RST = '1' or cmd_cnt_clear = '1') then
+                cnt_ipv4_dst_hit <= (others => '0');
+            elsif (cnt_ipv4_dst_hit_en = '1') then
+                cnt_ipv4_dst_hit <= cnt_ipv4_dst_hit + 1;
+            end if;
+        end if;
+    end process;
+
+    process (CLK)
+    begin
+        if (rising_edge(CLK)) then
+            if (RST = '1' or cmd_cnt_clear = '1') then
+                cnt_ipv4_src_hit <= (others => '0');
+            elsif (cnt_ipv4_src_hit_en = '1') then
+                cnt_ipv4_src_hit <= cnt_ipv4_src_hit + 1;
             end if;
         end if;
     end process;
@@ -300,9 +423,11 @@ begin
     begin
         if (rising_edge(CLK)) then
             if (cmd_cnt_sample = '1') then
-                cnt_pkt_reg  <= std_logic_vector(cnt_pkt);
-                cnt_ipv4_reg <= std_logic_vector(cnt_ipv4);
-                cnt_ipv6_reg <= std_logic_vector(cnt_ipv6);
+                cnt_pkt_reg          <= std_logic_vector(cnt_pkt);
+                cnt_ipv4_reg         <= std_logic_vector(cnt_ipv4);
+                cnt_ipv6_reg         <= std_logic_vector(cnt_ipv6);
+                cnt_ipv4_dst_hit_reg <= std_logic_vector(cnt_ipv4_dst_hit);
+                cnt_ipv4_src_hit_reg <= std_logic_vector(cnt_ipv4_src_hit);
             end if;
         end if;
     end process;
@@ -332,6 +457,10 @@ begin
                     wb_mfs_din(31 downto 0) <= cnt_ipv4_reg;
                 when X"18" =>
                     wb_mfs_din(31 downto 0) <= cnt_ipv6_reg;
+                when X"28" =>
+                    wb_mfs_din(31 downto 0) <= cnt_ipv4_dst_hit_reg;
+                when X"2C" =>
+                    wb_mfs_din(31 downto 0) <= cnt_ipv4_src_hit_reg;
                 when others =>
                     wb_mfs_din(31 downto 0) <= X"DEADCAFE";
             end case;

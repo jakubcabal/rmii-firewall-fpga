@@ -21,6 +21,7 @@ entity MATCH_UNIT is
 
         -- MATCH INTERFACE
         MATCH_DATA : in  std_logic_vector(DATA_WIDTH-1 downto 0);
+        MATCH_ENA  : in  std_logic;
         MATCH_REQ  : in  std_logic;
         MATCH_BUSY : out std_logic;
         MATCH_ADDR : out std_logic_vector(ADDR_WIDTH-1 downto 0);
@@ -47,6 +48,7 @@ architecture RTL of MATCH_UNIT is
     signal match_addr_cnt     : unsigned(ADDR_WIDTH+1-1 downto 0);
     signal match_addr_cnt_max : std_logic;
     signal match_data_reg     : std_logic_vector(DATA_WIDTH-1 downto 0);
+    signal match_ena_reg      : std_logic;
     signal match_run          : std_logic;
 
     signal ram_match_hit      : std_logic;
@@ -98,12 +100,13 @@ begin
         if (rising_edge(CLK)) then
             if (MATCH_REQ = '1' and match_run = '0') then
                 match_data_reg <= MATCH_DATA;
+                match_ena_reg  <= MATCH_ENA;
             end if;
         end if;
     end process;
 
     ram_match_hit <= '1' when (ram_rd_data(DATA_WIDTH+1-1 downto 1) = match_data_reg) else '0';
-    ram_match_vld <= ram_match_hit and ram_rd_data(0) and ram_rd_data_vld;
+    ram_match_vld <= ram_match_hit and ram_rd_data(0) and ram_rd_data_vld and match_ena_reg;
 
     process (CLK)
     begin
