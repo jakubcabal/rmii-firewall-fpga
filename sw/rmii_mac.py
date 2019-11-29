@@ -42,7 +42,7 @@ class rmii_mac:
         print("Discarded frames:             %d" % (rx_cnt_reg-tx_cnt_reg))
         print("Released frames:              %d" % tx_cnt_reg)
         print("----------------------------------------")
-        print("Received frames size histogram:")
+        print("Received frames length histogram:")
         print("----------------------------------------")
         print("Frames below 64 bytes:        %d" % cnt_rx_pkt_undersize)
         print("Frames 64   to 127  bytes:    %d" % cnt_rx_pkt_64_to_127)

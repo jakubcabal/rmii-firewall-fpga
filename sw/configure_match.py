@@ -18,4 +18,7 @@ mu_ipv4_dst = match_unit(wb,0x8C00,"E01_IPV4_DST")
 ipv4_dst_list = [0xA8C00001] #168.192.0.1
 mu_ipv4_dst.add_record(0,ipv4_dst_list)
 
+ipv4_dst_list = [0xE00000FB]
+mu_ipv4_dst.add_record(1,ipv4_dst_list)
+
 wb.close()
