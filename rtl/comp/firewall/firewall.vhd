@@ -66,9 +66,13 @@ architecture RTL of FIREWALL is
     signal parser_ipv4_vld : std_logic;
     signal parser_ipv6_vld : std_logic;
 
+    signal ex_mac_dst      : std_logic_vector(47 downto 0);
+    signal ex_mac_src      : std_logic_vector(47 downto 0);
     signal ex_ipv4_dst     : std_logic_vector(31 downto 0);
     signal ex_ipv4_src     : std_logic_vector(31 downto 0);
     signal ex_ipv4_vld     : std_logic;
+    signal ex_ipv6_dst     : std_logic_vector(127 downto 0);
+    signal ex_ipv6_src     : std_logic_vector(127 downto 0);
     signal ex_ipv6_vld     : std_logic;
 
     signal fifo_din        : std_logic_vector(FIFO_DATA_WIDTH-1 downto 0);
@@ -90,27 +94,50 @@ architecture RTL of FIREWALL is
     signal eraser_vld      : std_logic;
     signal eraser_rdy      : std_logic;
 
+    signal match_mac_dst_hit  : std_logic;
+    signal match_mac_dst_vld  : std_logic;
+    signal match_mac_src_hit  : std_logic;
+    signal match_mac_src_vld  : std_logic;
+
     signal match_ipv4_dst_hit : std_logic;
     signal match_ipv4_dst_vld : std_logic;
     signal match_ipv4_src_hit : std_logic;
     signal match_ipv4_src_vld : std_logic;
+
+    signal match_ipv6_dst_hit : std_logic;
+    signal match_ipv6_dst_vld : std_logic;
+    signal match_ipv6_src_hit : std_logic;
+    signal match_ipv6_src_vld : std_logic;
+
     signal match_hit          : std_logic;
     signal match_vld          : std_logic;
 
     signal cnt_pkt              : unsigned(31 downto 0);
     signal cnt_ipv4             : unsigned(31 downto 0);
     signal cnt_ipv6             : unsigned(31 downto 0);
+    signal cnt_mac_dst_hit      : unsigned(31 downto 0);
+    signal cnt_mac_src_hit      : unsigned(31 downto 0);
     signal cnt_ipv4_dst_hit     : unsigned(31 downto 0);
     signal cnt_ipv4_src_hit     : unsigned(31 downto 0);
+    signal cnt_ipv6_dst_hit     : unsigned(31 downto 0);
+    signal cnt_ipv6_src_hit     : unsigned(31 downto 0);
 
+    signal cnt_mac_dst_hit_en   : std_logic;
+    signal cnt_mac_src_hit_en   : std_logic;
     signal cnt_ipv4_dst_hit_en  : std_logic;
     signal cnt_ipv4_src_hit_en  : std_logic;
+    signal cnt_ipv6_dst_hit_en  : std_logic;
+    signal cnt_ipv6_src_hit_en  : std_logic;
 
     signal cnt_pkt_reg          : std_logic_vector(31 downto 0);
     signal cnt_ipv4_reg         : std_logic_vector(31 downto 0);
     signal cnt_ipv6_reg         : std_logic_vector(31 downto 0);
+    signal cnt_mac_dst_hit_reg  : std_logic_vector(31 downto 0);
+    signal cnt_mac_src_hit_reg  : std_logic_vector(31 downto 0);
     signal cnt_ipv4_dst_hit_reg : std_logic_vector(31 downto 0);
     signal cnt_ipv4_src_hit_reg : std_logic_vector(31 downto 0);
+    signal cnt_ipv6_dst_hit_reg : std_logic_vector(31 downto 0);
+    signal cnt_ipv6_src_hit_reg : std_logic_vector(31 downto 0);
 
     signal cmd_sel        : std_logic;
     signal cmd_we         : std_logic;
@@ -177,14 +204,14 @@ begin
         TX_VLD  => parser_vld,
         TX_RDY  => parser_rdy,
 
-        EX_MAC_DST  => open,
-        EX_MAC_SRC  => open,
+        EX_MAC_DST  => ex_mac_dst,
+        EX_MAC_SRC  => ex_mac_src,
         EX_IPV4_VLD => ex_ipv4_vld,
         EX_IPV4_DST => ex_ipv4_dst,
         EX_IPV4_SRC => ex_ipv4_src,
         EX_IPV6_VLD => ex_ipv6_vld,
-        EX_IPV6_DST => open,
-        EX_IPV6_SRC => open
+        EX_IPV6_DST => ex_ipv6_dst,
+        EX_IPV6_SRC => ex_ipv6_src
     );
 
     parser_eop_vld  <= parser_vld and parser_rdy and parser_eop;
@@ -228,6 +255,60 @@ begin
     -- -------------------------------------------------------------------------
     --  MATCH UNITS
     -- -------------------------------------------------------------------------
+
+    match_mac_dst_i : entity work.MATCH_UNIT_WB
+    generic map (
+        DATA_WIDTH => 48,
+        ADDR_WIDTH => 5
+    )
+    port map (
+        CLK        => CLK,
+        RST        => RST,
+
+        MATCH_DATA => ex_mac_dst,
+        MATCH_ENA  => '1',
+        MATCH_REQ  => parser_eop_vld,
+        MATCH_BUSY => open,
+        MATCH_ADDR => open,
+        MATCH_HIT  => match_mac_dst_hit,
+        MATCH_VLD  => match_mac_dst_vld,
+
+        WB_CYC     => wb_mfs_cyc(1),
+        WB_STB     => wb_mfs_stb(1),
+        WB_WE      => wb_mfs_we(1),
+        WB_ADDR    => wb_mfs_addr((1+1)*16-1 downto 1*16),
+        WB_DIN     => wb_mfs_dout((1+1)*32-1 downto 1*32),
+        WB_STALL   => wb_mfs_stall(1),
+        WB_ACK     => wb_mfs_ack(1),
+        WB_DOUT    => wb_mfs_din((1+1)*32-1 downto 1*32)
+    );
+
+    match_mac_src_i : entity work.MATCH_UNIT_WB
+    generic map (
+        DATA_WIDTH => 48,
+        ADDR_WIDTH => 5
+    )
+    port map (
+        CLK        => CLK,
+        RST        => RST,
+
+        MATCH_DATA => ex_mac_src,
+        MATCH_ENA  => '1',
+        MATCH_REQ  => parser_eop_vld,
+        MATCH_BUSY => open,
+        MATCH_ADDR => open,
+        MATCH_HIT  => match_mac_src_hit,
+        MATCH_VLD  => match_mac_src_vld,
+
+        WB_CYC     => wb_mfs_cyc(2),
+        WB_STB     => wb_mfs_stb(2),
+        WB_WE      => wb_mfs_we(2),
+        WB_ADDR    => wb_mfs_addr((2+1)*16-1 downto 2*16),
+        WB_DIN     => wb_mfs_dout((2+1)*32-1 downto 2*32),
+        WB_STALL   => wb_mfs_stall(2),
+        WB_ACK     => wb_mfs_ack(2),
+        WB_DOUT    => wb_mfs_din((2+1)*32-1 downto 2*32)
+    );
 
     match_ipv4_dst_i : entity work.MATCH_UNIT_WB
     generic map (
@@ -283,7 +364,63 @@ begin
         WB_DOUT    => wb_mfs_din((4+1)*32-1 downto 4*32)
     );
 
-    match_hit <= match_ipv4_dst_hit or match_ipv4_src_hit;
+    match_ipv6_dst_i : entity work.MATCH_UNIT_WB
+    generic map (
+        DATA_WIDTH => 128,
+        ADDR_WIDTH => 5
+    )
+    port map (
+        CLK        => CLK,
+        RST        => RST,
+
+        MATCH_DATA => ex_ipv6_dst,
+        MATCH_ENA  => ex_ipv6_vld,
+        MATCH_REQ  => parser_eop_vld,
+        MATCH_BUSY => open,
+        MATCH_ADDR => open,
+        MATCH_HIT  => match_ipv6_dst_hit,
+        MATCH_VLD  => match_ipv6_dst_vld,
+
+        WB_CYC     => wb_mfs_cyc(5),
+        WB_STB     => wb_mfs_stb(5),
+        WB_WE      => wb_mfs_we(5),
+        WB_ADDR    => wb_mfs_addr((5+1)*16-1 downto 5*16),
+        WB_DIN     => wb_mfs_dout((5+1)*32-1 downto 5*32),
+        WB_STALL   => wb_mfs_stall(5),
+        WB_ACK     => wb_mfs_ack(5),
+        WB_DOUT    => wb_mfs_din((5+1)*32-1 downto 5*32)
+    );
+
+    match_ipv6_src_i : entity work.MATCH_UNIT_WB
+    generic map (
+        DATA_WIDTH => 128,
+        ADDR_WIDTH => 5
+    )
+    port map (
+        CLK        => CLK,
+        RST        => RST,
+
+        MATCH_DATA => ex_ipv6_src,
+        MATCH_ENA  => ex_ipv6_vld,
+        MATCH_REQ  => parser_eop_vld,
+        MATCH_BUSY => open,
+        MATCH_ADDR => open,
+        MATCH_HIT  => match_ipv6_src_hit,
+        MATCH_VLD  => match_ipv6_src_vld,
+
+        WB_CYC     => wb_mfs_cyc(6),
+        WB_STB     => wb_mfs_stb(6),
+        WB_WE      => wb_mfs_we(6),
+        WB_ADDR    => wb_mfs_addr((6+1)*16-1 downto 6*16),
+        WB_DIN     => wb_mfs_dout((6+1)*32-1 downto 6*32),
+        WB_STALL   => wb_mfs_stall(6),
+        WB_ACK     => wb_mfs_ack(6),
+        WB_DOUT    => wb_mfs_din((6+1)*32-1 downto 6*32)
+    );
+
+    match_hit <= match_mac_dst_hit  or match_mac_src_hit  or
+                 match_ipv4_dst_hit or match_ipv4_src_hit or
+                 match_ipv6_dst_hit or match_ipv6_src_hit;
     match_vld <= match_ipv4_dst_vld;
 
     -- -------------------------------------------------------------------------
@@ -321,8 +458,12 @@ begin
     --  STATISTICS COUNTERS
     -- -------------------------------------------------------------------------
 
+    cnt_mac_dst_hit_en  <= match_mac_dst_vld  and match_mac_dst_hit;
+    cnt_mac_src_hit_en  <= match_mac_src_vld  and match_mac_src_hit;
     cnt_ipv4_dst_hit_en <= match_ipv4_dst_vld and match_ipv4_dst_hit;
     cnt_ipv4_src_hit_en <= match_ipv4_src_vld and match_ipv4_src_hit;
+    cnt_ipv6_dst_hit_en <= match_ipv6_dst_vld and match_ipv6_dst_hit;
+    cnt_ipv6_src_hit_en <= match_ipv6_src_vld and match_ipv6_src_hit;
 
     process (CLK)
     begin
@@ -361,6 +502,28 @@ begin
     begin
         if (rising_edge(CLK)) then
             if (RST = '1' or cmd_cnt_clear = '1') then
+                cnt_mac_dst_hit <= (others => '0');
+            elsif (cnt_mac_dst_hit_en = '1') then
+                cnt_mac_dst_hit <= cnt_mac_dst_hit + 1;
+            end if;
+        end if;
+    end process;
+
+    process (CLK)
+    begin
+        if (rising_edge(CLK)) then
+            if (RST = '1' or cmd_cnt_clear = '1') then
+                cnt_mac_src_hit <= (others => '0');
+            elsif (cnt_mac_src_hit_en = '1') then
+                cnt_mac_src_hit <= cnt_mac_src_hit + 1;
+            end if;
+        end if;
+    end process;
+
+    process (CLK)
+    begin
+        if (rising_edge(CLK)) then
+            if (RST = '1' or cmd_cnt_clear = '1') then
                 cnt_ipv4_dst_hit <= (others => '0');
             elsif (cnt_ipv4_dst_hit_en = '1') then
                 cnt_ipv4_dst_hit <= cnt_ipv4_dst_hit + 1;
@@ -375,6 +538,28 @@ begin
                 cnt_ipv4_src_hit <= (others => '0');
             elsif (cnt_ipv4_src_hit_en = '1') then
                 cnt_ipv4_src_hit <= cnt_ipv4_src_hit + 1;
+            end if;
+        end if;
+    end process;
+
+    process (CLK)
+    begin
+        if (rising_edge(CLK)) then
+            if (RST = '1' or cmd_cnt_clear = '1') then
+                cnt_ipv6_dst_hit <= (others => '0');
+            elsif (cnt_ipv6_dst_hit_en = '1') then
+                cnt_ipv6_dst_hit <= cnt_ipv6_dst_hit + 1;
+            end if;
+        end if;
+    end process;
+
+    process (CLK)
+    begin
+        if (rising_edge(CLK)) then
+            if (RST = '1' or cmd_cnt_clear = '1') then
+                cnt_ipv6_src_hit <= (others => '0');
+            elsif (cnt_ipv6_src_hit_en = '1') then
+                cnt_ipv6_src_hit <= cnt_ipv6_src_hit + 1;
             end if;
         end if;
     end process;
@@ -426,8 +611,12 @@ begin
                 cnt_pkt_reg          <= std_logic_vector(cnt_pkt);
                 cnt_ipv4_reg         <= std_logic_vector(cnt_ipv4);
                 cnt_ipv6_reg         <= std_logic_vector(cnt_ipv6);
+                cnt_mac_dst_hit_reg  <= std_logic_vector(cnt_mac_dst_hit);
+                cnt_mac_src_hit_reg  <= std_logic_vector(cnt_mac_src_hit);
                 cnt_ipv4_dst_hit_reg <= std_logic_vector(cnt_ipv4_dst_hit);
                 cnt_ipv4_src_hit_reg <= std_logic_vector(cnt_ipv4_src_hit);
+                cnt_ipv6_dst_hit_reg <= std_logic_vector(cnt_ipv6_dst_hit);
+                cnt_ipv6_src_hit_reg <= std_logic_vector(cnt_ipv6_src_hit);
             end if;
         end if;
     end process;
@@ -448,7 +637,7 @@ begin
         if (rising_edge(CLK)) then
             case wb_mfs_addr(7 downto 0) is
                 when X"00" =>
-                    wb_mfs_din(31 downto 0) <= X"20191123"; -- version
+                    wb_mfs_din(31 downto 0) <= X"20191130"; -- version
                 when X"04" =>
                     wb_mfs_din(31 downto 0) <= status_reg;
                 when X"10" =>
@@ -457,10 +646,18 @@ begin
                     wb_mfs_din(31 downto 0) <= cnt_ipv4_reg;
                 when X"18" =>
                     wb_mfs_din(31 downto 0) <= cnt_ipv6_reg;
+                when X"20" =>
+                    wb_mfs_din(31 downto 0) <= cnt_mac_dst_hit_reg;
+                when X"24" =>
+                    wb_mfs_din(31 downto 0) <= cnt_mac_src_hit_reg;
                 when X"28" =>
                     wb_mfs_din(31 downto 0) <= cnt_ipv4_dst_hit_reg;
                 when X"2C" =>
                     wb_mfs_din(31 downto 0) <= cnt_ipv4_src_hit_reg;
+                when X"30" =>
+                    wb_mfs_din(31 downto 0) <= cnt_ipv6_dst_hit_reg;
+                when X"34" =>
+                    wb_mfs_din(31 downto 0) <= cnt_ipv6_src_hit_reg;
                 when others =>
                     wb_mfs_din(31 downto 0) <= X"DEADCAFE";
             end case;
